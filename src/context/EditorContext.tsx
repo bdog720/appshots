@@ -32,6 +32,20 @@ import {
   useEditorPersistence,
   clearPersistedState,
 } from "../lib/useLocalStorage";
+import type { TextSettings, TextSettingKey } from "../lib/text-settings";
+import {
+  DEFAULT_TEXT_SETTINGS,
+  overrideScreenshotText,
+  resetScreenshotText,
+  applyTextDefaultToScreenshots,
+  deriveTextOverrides,
+} from "../lib/text-settings";
+import { addColorToPalette, removeColorFromPalette } from "../lib/saved-colors";
+import {
+  serializeProject,
+  parseProjectFile,
+  suggestProjectFilename,
+} from "../lib/project-io";
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
@@ -46,10 +60,17 @@ interface EditorContextType {
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
   switchProject: (id: string) => void;
+  /** Download a project as a JSON backup file */
+  exportProject: (id: string) => void;
+  /** Import a project from a JSON backup file (throws on invalid input) */
+  importProject: (file: File) => Promise<void>;
 
   // State
   isFontPickerOpen: boolean;
   setIsFontPickerOpen: (open: boolean) => void;
+  /** Whether the font picker edits the global default or the active screenshot */
+  fontPickerScope: "global" | "screenshot";
+  setFontPickerScope: (scope: "global" | "screenshot") => void;
   isStarModalOpen: boolean;
   setIsStarModalOpen: (open: boolean) => void;
   selectedDeviceId: string;
@@ -65,10 +86,24 @@ interface EditorContextType {
   selectedElement: SelectedElement | null;
   setSelectedElement: (element: SelectedElement | null) => void;
   isDragging: boolean;
-  headlineFontSize: number;
-  setHeadlineFontSize: (size: number) => void;
-  subheadlineFontSize: number;
-  setSubheadlineFontSize: (size: number) => void;
+  /** Project-level global text defaults */
+  textDefaults: TextSettings;
+  /** Update a global text default and propagate to non-overriding screenshots */
+  setTextDefault: <K extends TextSettingKey>(
+    key: K,
+    value: TextSettings[K],
+  ) => void;
+  /** Override a text setting on the active screenshot */
+  setActiveScreenshotText: <K extends TextSettingKey>(
+    key: K,
+    value: TextSettings[K],
+  ) => void;
+  /** Clear an override on the active screenshot, reverting to the global default */
+  resetActiveScreenshotText: (key: TextSettingKey) => void;
+  /** Project-level saved color swatches */
+  savedColors: string[];
+  addSavedColor: (color: string) => void;
+  removeSavedColor: (color: string) => void;
   previewDimensions: { width: number; height: number };
   setPreviewDimensions: (dim: { width: number; height: number }) => void;
 
@@ -134,6 +169,14 @@ type LegacyScreenshotFields = {
   device3dRotateX?: number;
 };
 
+// Fields present on older persisted projects, before global text defaults.
+type LegacyProjectFields = {
+  headlineFontSize?: number;
+  subheadlineFontSize?: number;
+  textDefaults?: TextSettings;
+  savedColors?: string[];
+};
+
 // Default screenshot for new editors
 const createDefaultScreenshot = (
   defaultDeviceId: string = devices[0].id,
@@ -158,8 +201,11 @@ const createDefaultScreenshot = (
     headlineWidth: 80,
     subheadlineX: 50,
     subheadlineY: 18,
-    subheadlineWidth: 80,
-    fontFamily: "Inter",
+    subheadlineWidth: DEFAULT_TEXT_SETTINGS.subheadlineWidth,
+    fontFamily: DEFAULT_TEXT_SETTINGS.fontFamily,
+    headlineFontSize: DEFAULT_TEXT_SETTINGS.headlineFontSize,
+    subheadlineFontSize: DEFAULT_TEXT_SETTINGS.subheadlineFontSize,
+    textOverrides: [],
     overlayImages: [],
     devices: [defaultDevice],
     activeDeviceId: defaultDevice.id,
@@ -170,6 +216,7 @@ const normalizeScreenshot = (
   screenshot: Partial<Screenshot> & LegacyScreenshotFields,
   fallbackDeviceId: string,
   fallbackColorId: string,
+  textDefaults: TextSettings,
 ): Screenshot => {
   const {
     screenshotSrc: _legacyScreenshotSrc,
@@ -189,27 +236,79 @@ const normalizeScreenshot = (
     fallbackColorId,
   );
 
+  // Resolve text values: keep any explicit per-screenshot value, otherwise fall
+  // back to the (migrated) global default. Font sizes are new per-screenshot
+  // fields, so legacy screenshots inherit them from the project default.
+  const merged = { ...baseScreenshot, ...rest };
+  const resolvedText: TextSettings = {
+    headlineFontSize: screenshot.headlineFontSize ?? textDefaults.headlineFontSize,
+    subheadlineFontSize:
+      screenshot.subheadlineFontSize ?? textDefaults.subheadlineFontSize,
+    fontFamily: merged.fontFamily,
+    textColor: merged.textColor,
+    headlineWidth: merged.headlineWidth,
+    subheadlineWidth: merged.subheadlineWidth,
+  };
+
   return {
-    ...baseScreenshot,
-    ...rest,
+    ...merged,
+    ...resolvedText,
     overlayImages: screenshot.overlayImages ?? [],
     devices: deviceInstances,
     activeDeviceId,
+    // Preserve an existing override list; otherwise derive it by comparing the
+    // resolved values against the defaults so current appearance is preserved.
+    textOverrides:
+      screenshot.textOverrides ?? deriveTextOverrides(resolvedText, textDefaults),
   };
 };
 
-const normalizeProject = (project: Project): Project => {
+const normalizeProject = (project: Project & LegacyProjectFields): Project => {
   const fallbackDeviceId = project.selectedDeviceId ?? devices[0].id;
   const fallbackColorId =
     project.selectedColorId ?? getDeviceSpecById(fallbackDeviceId).colors[0].id;
+
+  // Derive global text defaults. Already-migrated projects carry `textDefaults`;
+  // older ones had project-level font sizes and per-screenshot family/color/width
+  // — seed the defaults from those (using the first screenshot for the rest) so
+  // existing screenshots keep their current appearance via derived overrides.
+  const firstScreenshot = project.screenshots[0] as
+    | (Partial<Screenshot> & LegacyScreenshotFields)
+    | undefined;
+  const textDefaults: TextSettings = project.textDefaults ?? {
+    headlineFontSize:
+      project.headlineFontSize ?? DEFAULT_TEXT_SETTINGS.headlineFontSize,
+    subheadlineFontSize:
+      project.subheadlineFontSize ?? DEFAULT_TEXT_SETTINGS.subheadlineFontSize,
+    fontFamily: firstScreenshot?.fontFamily ?? DEFAULT_TEXT_SETTINGS.fontFamily,
+    textColor: firstScreenshot?.textColor ?? DEFAULT_TEXT_SETTINGS.textColor,
+    headlineWidth:
+      firstScreenshot?.headlineWidth ?? DEFAULT_TEXT_SETTINGS.headlineWidth,
+    subheadlineWidth:
+      firstScreenshot?.subheadlineWidth ?? DEFAULT_TEXT_SETTINGS.subheadlineWidth,
+  };
+
   const normalizedScreenshots = project.screenshots.map((screenshot) =>
-    normalizeScreenshot(screenshot, fallbackDeviceId, fallbackColorId),
+    normalizeScreenshot(
+      screenshot,
+      fallbackDeviceId,
+      fallbackColorId,
+      textDefaults,
+    ),
   );
 
+  const {
+    headlineFontSize: _legacyHeadlineFontSize,
+    subheadlineFontSize: _legacySubheadlineFontSize,
+    ...rest
+  } = project;
+
   return {
-    ...project,
+    ...rest,
     selectedDeviceId: fallbackDeviceId,
     selectedColorId: fallbackColorId,
+    textDefaults,
+    savedColors: project.savedColors ?? [],
     screenshots: normalizedScreenshots,
     activeScreenshotId:
       normalizedScreenshots.find((s) => s.id === project.activeScreenshotId)?.id ??
@@ -232,8 +331,8 @@ const createDefaultProject = (name: string = "My Project"): Project => {
     selectedColorId: defaultColorId,
     exportSizeId: exportSizes[0].id,
     activeScreenshotId: defaultScreenshot.id,
-    headlineFontSize: 72,
-    subheadlineFontSize: 42,
+    textDefaults: { ...DEFAULT_TEXT_SETTINGS },
+    savedColors: [],
   };
 };
 
@@ -270,6 +369,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   // Initialize state from persisted values or defaults
   const [isFontPickerOpen, setIsFontPickerOpen] = useState(false);
+  const [fontPickerScope, setFontPickerScope] = useState<
+    "global" | "screenshot"
+  >("screenshot");
   const [isStarModalOpen, setIsStarModalOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceIdState] = useState(
     activeProject.selectedDeviceId,
@@ -286,11 +388,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [activeScreenshotId, setActiveScreenshotIdState] = useState(
     activeProject.activeScreenshotId,
   );
-  const [headlineFontSize, setHeadlineFontSizeState] = useState(
-    activeProject.headlineFontSize,
+  const [textDefaults, setTextDefaultsState] = useState<TextSettings>(
+    activeProject.textDefaults,
   );
-  const [subheadlineFontSize, setSubheadlineFontSizeState] = useState(
-    activeProject.subheadlineFontSize,
+  const [savedColors, setSavedColorsState] = useState<string[]>(
+    activeProject.savedColors,
   );
 
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(
@@ -327,8 +429,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               selectedColorId,
               exportSizeId,
               activeScreenshotId,
-              headlineFontSize,
-              subheadlineFontSize,
+              textDefaults,
+              savedColors,
               updatedAt: Date.now(),
             }
           : p,
@@ -341,8 +443,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     selectedColorId,
     exportSizeId,
     activeScreenshotId,
-    headlineFontSize,
-    subheadlineFontSize,
+    textDefaults,
+    savedColors,
   ]);
 
   // Update project whenever state changes
@@ -402,11 +504,47 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const setActiveScreenshotId = (id: string) => {
     setActiveScreenshotIdState(id);
   };
-  const setHeadlineFontSize = (size: number) => {
-    setHeadlineFontSizeState(size);
+
+  // Update a global default and push it into every screenshot that inherits it.
+  const setTextDefault = <K extends TextSettingKey>(
+    key: K,
+    value: TextSettings[K],
+  ) => {
+    setTextDefaultsState((prev) => ({ ...prev, [key]: value }));
+    setScreenshotsState((prev) =>
+      applyTextDefaultToScreenshots(prev, key, value),
+    );
   };
-  const setSubheadlineFontSize = (size: number) => {
-    setSubheadlineFontSizeState(size);
+
+  // Override a text setting on the active screenshot only.
+  const setActiveScreenshotText = <K extends TextSettingKey>(
+    key: K,
+    value: TextSettings[K],
+  ) => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId ? overrideScreenshotText(s, key, value) : s,
+      ),
+    );
+  };
+
+  // Clear an override on the active screenshot, reverting to the global default.
+  const resetActiveScreenshotText = (key: TextSettingKey) => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId
+          ? resetScreenshotText(s, key, textDefaults)
+          : s,
+      ),
+    );
+  };
+
+  const addSavedColor = (color: string) => {
+    setSavedColorsState((prev) => addColorToPalette(prev, color));
+  };
+
+  const removeSavedColor = (color: string) => {
+    setSavedColorsState((prev) => removeColorFromPalette(prev, color));
   };
 
   // Project management functions
@@ -449,9 +587,59 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setExportSizeIdState(project.exportSizeId);
     setScreenshotsState(project.screenshots);
     setActiveScreenshotIdState(project.activeScreenshotId);
-    setHeadlineFontSizeState(project.headlineFontSize);
-    setSubheadlineFontSizeState(project.subheadlineFontSize);
+    setTextDefaultsState(project.textDefaults);
+    setSavedColorsState(project.savedColors);
     setSelectedElement(null);
+  };
+
+  // Load a fully-formed project into the workspace as the active project.
+  // Sets local state directly from the object so it doesn't depend on the
+  // (async) projects state update landing first.
+  const activateProject = (project: Project) => {
+    setActiveProjectId(project.id);
+    setSelectedDeviceIdState(project.selectedDeviceId);
+    setSelectedColorIdState(project.selectedColorId);
+    setExportSizeIdState(project.exportSizeId);
+    setScreenshotsState(project.screenshots);
+    setActiveScreenshotIdState(project.activeScreenshotId);
+    setTextDefaultsState(project.textDefaults);
+    setSavedColorsState(project.savedColors);
+    setSelectedElement(null);
+  };
+
+  const exportProject = (id: string) => {
+    const project = projects.find((p) => p.id === id);
+    if (!project) return;
+
+    const blob = new Blob([serializeProject(project)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = suggestProjectFilename(project.name);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const importProject = async (file: File) => {
+    const text = await file.text();
+    const parsed = parseProjectFile(text); // throws on invalid input
+    const normalized = normalizeProject({
+      ...(parsed as Project),
+      id: generateId(),
+    });
+    const imported: Project = {
+      ...normalized,
+      id: generateId(),
+      name: parsed.name ? `${parsed.name} (imported)` : "Imported Project",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setProjects((prev) => [...prev, imported]);
+    activateProject(imported);
   };
 
   const selectedDevice =
@@ -510,14 +698,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       backgroundColor: activeScreenshot.backgroundColor,
       backgroundMode: activeScreenshot.backgroundMode,
       gradientPresetId: activeScreenshot.gradientPresetId,
-      textColor: activeScreenshot.textColor,
+      // New screenshots inherit the project's global text defaults (Model A).
+      textColor: textDefaults.textColor,
       headlineX: 50,
       headlineY: 10,
-      headlineWidth: 80,
+      headlineWidth: textDefaults.headlineWidth,
       subheadlineX: 50,
       subheadlineY: 18,
-      subheadlineWidth: 80,
-      fontFamily: activeScreenshot.fontFamily,
+      subheadlineWidth: textDefaults.subheadlineWidth,
+      fontFamily: textDefaults.fontFamily,
+      headlineFontSize: textDefaults.headlineFontSize,
+      subheadlineFontSize: textDefaults.subheadlineFontSize,
+      textOverrides: [],
       overlayImages: [],
       devices: activeScreenshot.devices.map((device) =>
         cloneDeviceInstance(device, { id: generateId() }),
@@ -949,8 +1141,6 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       screenshots,
       exportSize,
       previewDimensions,
-      headlineFontSize,
-      subheadlineFontSize,
     });
     setIsStarModalOpen(true);
   };
@@ -968,8 +1158,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setExportSizeIdState(defaultProject.exportSizeId);
     setScreenshotsState(defaultProject.screenshots);
     setActiveScreenshotIdState(defaultProject.activeScreenshotId);
-    setHeadlineFontSizeState(defaultProject.headlineFontSize);
-    setSubheadlineFontSizeState(defaultProject.subheadlineFontSize);
+    setTextDefaultsState(defaultProject.textDefaults);
+    setSavedColorsState(defaultProject.savedColors);
     setSelectedElement(null);
     setIsStarModalOpen(false);
   };
@@ -985,9 +1175,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         renameProject,
         deleteProject,
         switchProject,
+        exportProject,
+        importProject,
 
         isFontPickerOpen,
         setIsFontPickerOpen,
+        fontPickerScope,
+        setFontPickerScope,
         isStarModalOpen,
         setIsStarModalOpen,
         selectedDeviceId,
@@ -1003,10 +1197,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         selectedElement,
         setSelectedElement,
         isDragging,
-        headlineFontSize,
-        setHeadlineFontSize,
-        subheadlineFontSize,
-        setSubheadlineFontSize,
+        textDefaults,
+        setTextDefault,
+        setActiveScreenshotText,
+        resetActiveScreenshotText,
+        savedColors,
+        addSavedColor,
+        removeSavedColor,
         previewDimensions,
         setPreviewDimensions,
         previewRef,

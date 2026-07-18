@@ -6,6 +6,7 @@
 
 import { Toggle } from "./Toggle";
 import { RangeSlider } from "./RangeSlider";
+import { SwatchColorInput } from "./SwatchColorInput";
 import { STYLES, SLIDER_RANGES } from "./constants";
 import type { ShadowControlsProps } from "./types";
 
@@ -37,14 +38,9 @@ export const ShadowControls = ({
 
     {shadow.enabled && (
       <>
-        <div className="flex items-center gap-2">
-          <span className={STYLES.labelSmall}>Color</span>
-          <input
-            type="color"
-            value={shadow.color}
-            onChange={(e) => onColorChange(e.target.value)}
-            className={STYLES.colorInputSmall}
-          />
+        <div>
+          <span className={`${STYLES.labelSmall} mb-1 block`}>Color</span>
+          <SwatchColorInput value={shadow.color} onChange={onColorChange} />
         </div>
 
         <RangeSlider

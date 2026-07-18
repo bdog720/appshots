@@ -4,6 +4,7 @@
  * Reusable button for selection lists (devices, export sizes).
  */
 
+import type { ReactNode } from "react";
 import { STYLES } from "./constants";
 
 interface SelectionButtonProps {
@@ -13,6 +14,8 @@ interface SelectionButtonProps {
   isSelected: boolean;
   /** Click handler */
   onClick: () => void;
+  /** Optional trailing adornment (e.g. a format badge) */
+  badge?: ReactNode;
 }
 
 /**
@@ -37,6 +40,7 @@ export const SelectionButton = ({
   label,
   isSelected,
   onClick,
+  badge,
 }: SelectionButtonProps) => (
   <button
     className={`${STYLES.selectionButton} ${
@@ -44,6 +48,13 @@ export const SelectionButton = ({
     }`}
     onClick={onClick}
   >
-    {label}
+    {badge ? (
+      <span className="flex items-start justify-between gap-2">
+        <span>{label}</span>
+        {badge}
+      </span>
+    ) : (
+      label
+    )}
   </button>
 );

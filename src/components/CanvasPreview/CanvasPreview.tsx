@@ -40,8 +40,6 @@ export const CanvasPreview = () => {
     previewRef,
     canvasContainerRef,
     selectedElement,
-    headlineFontSize,
-    subheadlineFontSize,
     setPreviewDimensions,
     exportSize,
   } = useEditor();
@@ -81,8 +79,8 @@ export const CanvasPreview = () => {
                 canRemove={screenshots.length > 1}
                 selectedElement={selectedElement}
                 exportSize={exportSize}
-                headlineFontSize={headlineFontSize}
-                subheadlineFontSize={subheadlineFontSize}
+                headlineFontSize={screenshot.headlineFontSize}
+                subheadlineFontSize={screenshot.subheadlineFontSize}
                 previewRef={previewRef}
                 getBackgroundStyle={getBackgroundStyle}
                 onSelect={() => {

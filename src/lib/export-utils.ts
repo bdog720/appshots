@@ -16,8 +16,6 @@ interface ExportOptions {
   screenshots: Screenshot[];
   exportSize: ExportSize;
   previewDimensions: { width: number; height: number };
-  headlineFontSize: number;
-  subheadlineFontSize: number;
 }
 
 /**
@@ -898,8 +896,6 @@ export const exportScreenshots = async ({
   screenshots,
   exportSize,
   previewDimensions,
-  headlineFontSize,
-  subheadlineFontSize,
 }: ExportOptions) => {
   // Wait for fonts to be loaded before exporting
   await document.fonts.ready;
@@ -1000,8 +996,9 @@ export const exportScreenshots = async ({
     }
 
     const fontFamily = `'${screenshot.fontFamily}', sans-serif`;
-    const exportHeadlineFontSize = (headlineFontSize / 3) * scaleX;
-    const exportSubheadlineFontSize = (subheadlineFontSize / 3) * scaleX;
+    const exportHeadlineFontSize = (screenshot.headlineFontSize / 3) * scaleX;
+    const exportSubheadlineFontSize =
+      (screenshot.subheadlineFontSize / 3) * scaleX;
     const lineHeight = 1.1;
     const headlineMaxWidth =
       canvas.width * (screenshot.headlineWidth / 100) - paddingX;

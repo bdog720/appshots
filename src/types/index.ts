@@ -1,3 +1,7 @@
+import type { TextSettings, TextSettingKey } from "../lib/text-settings";
+
+export type { TextSettings, TextSettingKey };
+
 export type DeviceColor = {
   id: string;
   label: string;
@@ -87,6 +91,12 @@ export type Screenshot = {
   subheadlineY: number;
   subheadlineWidth: number;
   fontFamily: string;
+  /** Resolved headline font size (inherited from project default unless overridden) */
+  headlineFontSize: number;
+  /** Resolved subheadline font size (inherited from project default unless overridden) */
+  subheadlineFontSize: number;
+  /** Text-setting keys this screenshot overrides rather than inherits */
+  textOverrides: TextSettingKey[];
   overlayImages: ImageOverlay[];
   devices: DeviceInstance[];
   activeDeviceId: string;
@@ -127,8 +137,8 @@ export type Project = {
   exportSizeId: string;
   /** Active screenshot ID */
   activeScreenshotId: string;
-  /** Headline font size */
-  headlineFontSize: number;
-  /** Subheadline font size */
-  subheadlineFontSize: number;
+  /** Global text defaults; screenshots inherit these unless they override */
+  textDefaults: TextSettings;
+  /** User-saved color swatches, shared across the project */
+  savedColors: string[];
 };

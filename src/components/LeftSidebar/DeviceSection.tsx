@@ -8,6 +8,8 @@ import type { DeviceSpec } from "../../types";
 import { SidebarSection } from "./SidebarSection";
 import { SelectionButton } from "./SelectionButton";
 import { ColorButton } from "./ColorButton";
+import { CollapsibleGroup } from "./CollapsibleGroup";
+import { groupDevicesByPlatform } from "../../lib/sidebar-groups";
 import { STYLES } from "./constants";
 
 interface DeviceSectionProps {
@@ -50,17 +52,31 @@ export const DeviceSection = ({
   selectedDevice,
   onDeviceSelect,
   onColorSelect,
-}: DeviceSectionProps) => (
+}: DeviceSectionProps) => {
+  const groups = groupDevicesByPlatform(devices);
+
+  return (
   <SidebarSection title="Device">
-    {/* Device list */}
-    <div className={STYLES.buttonList}>
-      {devices.map((device) => (
-        <SelectionButton
-          key={device.id}
-          label={device.label}
-          isSelected={selectedDeviceId === device.id}
-          onClick={() => onDeviceSelect(device.id, device.colors[0].id)}
-        />
+    {/* Device list, grouped by platform */}
+    <div className="space-y-1.5">
+      {groups.map((group) => (
+        <CollapsibleGroup
+          key={group.id}
+          label={group.label}
+          count={group.devices.length}
+          defaultOpen={group.devices.some((d) => d.id === selectedDeviceId)}
+        >
+          <div className={STYLES.buttonList}>
+            {group.devices.map((device) => (
+              <SelectionButton
+                key={device.id}
+                label={device.label}
+                isSelected={selectedDeviceId === device.id}
+                onClick={() => onDeviceSelect(device.id, device.colors[0].id)}
+              />
+            ))}
+          </div>
+        </CollapsibleGroup>
       ))}
     </div>
 
@@ -80,4 +96,5 @@ export const DeviceSection = ({
       </div>
     </div>
   </SidebarSection>
-);
+  );
+};

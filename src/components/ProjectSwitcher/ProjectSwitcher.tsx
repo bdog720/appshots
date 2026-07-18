@@ -18,6 +18,8 @@ import {
   Trash2,
   Check,
   X,
+  Download,
+  Upload,
 } from "lucide-react";
 import { useEditor } from "../../context/EditorContext";
 import type { Project } from "../../types";
@@ -31,6 +33,7 @@ interface ProjectItemProps {
   onSelect: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  onExport: () => void;
   canDelete: boolean;
 }
 
@@ -40,6 +43,7 @@ const ProjectItem = ({
   onSelect,
   onRename,
   onDelete,
+  onExport,
   canDelete,
 }: ProjectItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -121,6 +125,16 @@ const ProjectItem = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            onExport();
+          }}
+          className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+          title="Export project (download backup)"
+        >
+          <Download className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             setIsEditing(true);
           }}
           className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
@@ -157,13 +171,34 @@ export const ProjectSwitcher = () => {
     renameProject,
     deleteProject,
     switchProject,
+    exportProject,
+    importProject,
   } = useEditor();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const newProjectInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+    setImportError(null);
+    try {
+      await importProject(file);
+      setIsOpen(false);
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Couldn't import that file.",
+      );
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -247,6 +282,7 @@ export const ProjectSwitcher = () => {
                 }}
                 onRename={(name) => renameProject(project.id, name)}
                 onDelete={() => deleteProject(project.id)}
+                onExport={() => exportProject(project.id)}
                 canDelete={projects.length > 1}
               />
             ))}
@@ -290,6 +326,27 @@ export const ProjectSwitcher = () => {
                 <Plus className="w-4 h-4" />
                 New Project
               </button>
+            )}
+          </div>
+
+          {/* Import project */}
+          <div className="border-t border-zinc-800">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Import Project
+            </button>
+            {importError && (
+              <p className="px-3 pb-2 text-xs text-red-400">{importError}</p>
             )}
           </div>
         </div>
