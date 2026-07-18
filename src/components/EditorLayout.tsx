@@ -3,6 +3,7 @@ import { RightSidebar } from "./RightSidebar";
 import { CanvasPreview } from "./CanvasPreview";
 import { FontPicker } from "./FontPicker";
 import { GitHubStarModal } from "./GitHubStarModal";
+import { NarrowScreenNotice } from "./NarrowScreenNotice";
 import { useEditor } from "../context/EditorContext";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
@@ -46,6 +47,7 @@ export const EditorLayout = () => {
 
   return (
     <div className="flex flex-col h-screen bg-base text-white overflow-hidden">
+      <NarrowScreenNotice />
       {showBanner && (
         <div className="flex items-center justify-center gap-2 bg-zinc-800 px-4 py-1.5 text-xs text-zinc-300 relative shrink-0">
           <Star size={12} className="text-yellow-400 fill-yellow-400" />
