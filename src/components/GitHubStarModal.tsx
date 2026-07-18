@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import { ExternalLink, Star, X } from "lucide-react";
 import { GITHUB_REPO_URL } from "../constants";
+import { useModalDismiss } from "../lib/useModalDismiss";
 
 interface GitHubStarModalProps {
   isOpen: boolean;
@@ -17,27 +18,20 @@ export const GitHubStarModal = ({
   isOpen,
   onClose,
 }: GitHubStarModalProps) => {
-  useEffect(() => {
-    if (!isOpen) return;
+  const modalRef = useRef<HTMLDivElement>(null);
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  useModalDismiss({ isOpen, onClose, containerRef: modalRef });
 
   if (!isOpen) return null;
 
   return (
-    <div className={BACKDROP_CLASSES}>
+    <div className={BACKDROP_CLASSES} onClick={onClose}>
       <div
+        ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="github-star-modal-title"
+        tabIndex={-1}
         className={MODAL_CLASSES}
         onClick={(event) => event.stopPropagation()}
       >
