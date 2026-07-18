@@ -1,11 +1,9 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useModalDismiss } from "./useModalDismiss";
-
-afterEach(cleanup);
 
 function Modal({
   isOpen,
