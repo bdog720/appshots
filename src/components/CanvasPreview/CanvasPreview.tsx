@@ -14,6 +14,7 @@
 import { useEditor } from "../../context/EditorContext";
 import { getRenderableDevicesForScreenshot } from "../../lib/device-overflow";
 import { Toolbar } from "./Toolbar";
+import { CanvasOnboarding } from "./CanvasOnboarding";
 import { ScreenshotCard } from "./ScreenshotCard";
 import { useResizeObserver } from "./useResizeObserver";
 
@@ -57,6 +58,8 @@ export const CanvasPreview = () => {
         onAddScreenshot={addScreenshot}
         screenshotCount={screenshots.length}
       />
+
+      <CanvasOnboarding />
 
       {/* Preview area with horizontal scroll */}
       <div
