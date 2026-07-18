@@ -41,6 +41,7 @@ import {
   deriveTextOverrides,
 } from "../lib/text-settings";
 import { addColorToPalette, removeColorFromPalette } from "../lib/saved-colors";
+import { useSnapshotHistory } from "../lib/useSnapshotHistory";
 import {
   serializeProject,
   parseProjectFile,
@@ -154,6 +155,12 @@ interface EditorContextType {
   handleExport: () => void;
   getBackgroundStyle: (screenshot: Screenshot) => string;
   resetEditor: () => void;
+
+  // Undo / redo over editor content
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
@@ -176,6 +183,13 @@ type LegacyProjectFields = {
   textDefaults?: TextSettings;
   savedColors?: string[];
 };
+
+/** The undoable slice of editor state (the active project's content). */
+interface EditorSnapshot {
+  screenshots: Screenshot[];
+  textDefaults: TextSettings;
+  savedColors: string[];
+}
 
 // Default screenshot for new editors
 const createDefaultScreenshot = (
@@ -458,6 +472,27 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     activeProjectId,
   });
 
+  // Undo / redo over the active project's content. Rapid edits (drags, slider
+  // sweeps, typing bursts) coalesce into a single step via debounced recording.
+  const applyHistorySnapshot = useCallback((snapshot: EditorSnapshot) => {
+    setScreenshotsState(snapshot.screenshots);
+    setTextDefaultsState(snapshot.textDefaults);
+    setSavedColorsState(snapshot.savedColors);
+    setSelectedElement(null);
+  }, []);
+
+  const {
+    undo,
+    redo,
+    reset: resetHistory,
+    canUndo,
+    canRedo,
+  } = useSnapshotHistory<EditorSnapshot>({
+    value: { screenshots, textDefaults, savedColors },
+    deps: [screenshots, textDefaults, savedColors],
+    apply: applyHistorySnapshot,
+  });
+
   // Wrapper functions that update both local state and project
   const setSelectedDeviceId = (id: string) => {
     setSelectedDeviceIdState(id);
@@ -590,6 +625,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setTextDefaultsState(project.textDefaults);
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
+    resetHistory({
+      screenshots: project.screenshots,
+      textDefaults: project.textDefaults,
+      savedColors: project.savedColors,
+    });
   };
 
   // Load a fully-formed project into the workspace as the active project.
@@ -605,6 +645,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setTextDefaultsState(project.textDefaults);
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
+    resetHistory({
+      screenshots: project.screenshots,
+      textDefaults: project.textDefaults,
+      savedColors: project.savedColors,
+    });
   };
 
   const exportProject = (id: string) => {
@@ -1162,6 +1207,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setSavedColorsState(defaultProject.savedColors);
     setSelectedElement(null);
     setIsStarModalOpen(false);
+    resetHistory({
+      screenshots: defaultProject.screenshots,
+      textDefaults: defaultProject.textDefaults,
+      savedColors: defaultProject.savedColors,
+    });
   };
 
   return (
@@ -1240,6 +1290,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         handleExport,
         getBackgroundStyle,
         resetEditor,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
       }}
     >
       {children}
