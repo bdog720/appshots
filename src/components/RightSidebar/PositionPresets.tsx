@@ -189,6 +189,7 @@ export const PositionPresets = ({
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
         className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors"
       >
         <span className="text-sm font-medium text-white">Position Presets</span>

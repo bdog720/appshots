@@ -53,6 +53,7 @@ export const EditorContent = ({
       onBlur={onBlur}
       className={STYLES.editor}
       data-placeholder={placeholder}
+      aria-label={placeholder}
       style={{ fontFamily: "Inter, system-ui, sans-serif" }}
     />
     {/* Fallback placeholder for browsers that don't support :empty */}

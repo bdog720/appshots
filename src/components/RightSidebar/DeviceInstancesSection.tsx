@@ -62,6 +62,7 @@ export const DeviceInstancesSection = ({
                   disabled={index === 0}
                   className={STYLES.iconButton}
                   title="Send backward"
+                  aria-label="Move device backward"
                 >
                   <ArrowDown className="w-3.5 h-3.5" />
                 </button>
@@ -73,6 +74,7 @@ export const DeviceInstancesSection = ({
                   disabled={index === screenshot.devices.length - 1}
                   className={STYLES.iconButton}
                   title="Bring forward"
+                  aria-label="Move device forward"
                 >
                   <ArrowUp className="w-3.5 h-3.5" />
                 </button>
@@ -84,6 +86,7 @@ export const DeviceInstancesSection = ({
                   disabled={screenshot.devices.length === 1}
                   className={STYLES.iconButtonDelete}
                   title="Remove"
+                  aria-label="Remove device"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

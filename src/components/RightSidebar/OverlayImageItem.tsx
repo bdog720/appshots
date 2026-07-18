@@ -51,6 +51,7 @@ export const OverlayImageItem = ({
         disabled={index === 0}
         className={STYLES.iconButton}
         title="Send backward"
+        aria-label="Move image backward"
       >
         <ArrowDown className="w-3.5 h-3.5" />
       </button>
@@ -62,6 +63,7 @@ export const OverlayImageItem = ({
         disabled={index === totalCount - 1}
         className={STYLES.iconButton}
         title="Bring forward"
+        aria-label="Move image forward"
       >
         <ArrowUp className="w-3.5 h-3.5" />
       </button>
@@ -72,6 +74,7 @@ export const OverlayImageItem = ({
         }}
         className={STYLES.iconButtonDelete}
         title="Remove"
+        aria-label="Remove image"
       >
         <X className="w-3.5 h-3.5" />
       </button>

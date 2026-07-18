@@ -142,6 +142,7 @@ export const TextSection = () => {
               value={source[key] as number}
               onChange={(e) => setValue(key, Number(e.target.value))}
               className={STYLES.rangeSlider}
+              aria-label={label}
             />
           </div>
         ))}
@@ -152,6 +153,7 @@ export const TextSection = () => {
           <SwatchColorInput
             value={source.textColor}
             onChange={(color) => setValue("textColor", color)}
+            label="Text color"
           />
         </div>
       </div>

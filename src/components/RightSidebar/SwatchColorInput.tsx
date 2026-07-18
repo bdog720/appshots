@@ -18,12 +18,15 @@ interface SwatchColorInputProps {
   onChange: (color: string) => void;
   /** Optional class override for the native input */
   inputClassName?: string;
+  /** Accessible label for the native color input (e.g. "Text color") */
+  label?: string;
 }
 
 export const SwatchColorInput = ({
   value,
   onChange,
   inputClassName = "flex-1 h-8 rounded-md cursor-pointer bg-transparent",
+  label = "Color",
 }: SwatchColorInputProps) => {
   const { savedColors, addSavedColor, removeSavedColor } = useEditor();
   const current = normalizeColor(value);
@@ -36,11 +39,13 @@ export const SwatchColorInput = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={inputClassName}
+          aria-label={label}
         />
         <button
           type="button"
           onClick={() => addSavedColor(value)}
           title="Save color to palette"
+          aria-label="Save color to palette"
           className="shrink-0 flex h-8 w-8 items-center justify-center rounded-md bg-input text-zinc-300 hover:bg-raised hover:text-white"
         >
           <Plus size={14} />

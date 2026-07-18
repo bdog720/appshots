@@ -50,5 +50,6 @@ export const ColorButton = ({
     style={{ backgroundColor: color }}
     onClick={onClick}
     title={label}
+    aria-label={label}
   />
 );

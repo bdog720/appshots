@@ -40,7 +40,11 @@ export const ShadowControls = ({
       <>
         <div>
           <span className={`${STYLES.labelSmall} mb-1 block`}>Color</span>
-          <SwatchColorInput value={shadow.color} onChange={onColorChange} />
+          <SwatchColorInput
+            value={shadow.color}
+            onChange={onColorChange}
+            label="Shadow color"
+          />
         </div>
 
         <RangeSlider
