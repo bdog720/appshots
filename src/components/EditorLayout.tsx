@@ -4,9 +4,10 @@ import { CanvasPreview } from "./CanvasPreview";
 import { FontPicker } from "./FontPicker";
 import { GitHubStarModal } from "./GitHubStarModal";
 import { useEditor } from "../context/EditorContext";
+import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
 import { Star, X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 export const EditorLayout = () => {
   const {
@@ -19,9 +20,29 @@ export const EditorLayout = () => {
     textDefaults,
     setTextDefault,
     setActiveScreenshotText,
+    undo,
+    redo,
+    selectedElement,
+    removeDevice,
+    removeOverlayImage,
+    handleExport,
   } = useEditor();
 
   const [showBanner, setShowBanner] = useState(true);
+
+  const deleteSelection = useCallback(() => {
+    if (!selectedElement?.id) return;
+    if (selectedElement.type === "device") removeDevice(selectedElement.id);
+    else if (selectedElement.type === "image")
+      removeOverlayImage(selectedElement.id);
+  }, [selectedElement, removeDevice, removeOverlayImage]);
+
+  useKeyboardShortcuts({
+    undo,
+    redo,
+    delete: deleteSelection,
+    export: handleExport,
+  });
 
   return (
     <div className="flex flex-col h-screen bg-base text-white overflow-hidden">
