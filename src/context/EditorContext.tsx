@@ -42,6 +42,7 @@ import {
 } from "../lib/text-settings";
 import { addColorToPalette, removeColorFromPalette } from "../lib/saved-colors";
 import { useSnapshotHistory } from "../lib/useSnapshotHistory";
+import { buildImportedScreenshots } from "../lib/bulk-import";
 import {
   serializeProject,
   parseProjectFile,
@@ -50,6 +51,17 @@ import {
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
+}
+
+/** Read a File as a data URL, resolving to null if it can't be read. */
+function readFileAsDataURL(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 interface EditorContextType {
@@ -126,6 +138,8 @@ interface EditorContextType {
   // Actions
   updateActiveScreenshot: (updates: Partial<Screenshot>) => void;
   addScreenshot: () => void;
+  /** Create one new screenshot tile per selected image file (appended). */
+  addScreenshotsFromImages: (files: FileList | File[]) => void;
   removeScreenshot: (id: string) => void;
   handleElementMouseDown: (
     e: React.MouseEvent,
@@ -776,6 +790,32 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setActiveScreenshotId(newScreenshot.id);
   };
 
+  // Create one screenshot tile per selected image, appended after the existing
+  // tiles and cloned from the current tile's style. Non-image or unreadable
+  // files are skipped. The whole import lands as a single history step.
+  const addScreenshotsFromImages = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+
+    const results = await Promise.all(imageFiles.map(readFileAsDataURL));
+    const images = results.filter(
+      (src): src is string => typeof src === "string" && src.length > 0,
+    );
+    if (images.length === 0) return;
+
+    const imported = buildImportedScreenshots({
+      base: activeScreenshot,
+      textDefaults,
+      images,
+      generateId,
+    });
+
+    setScreenshots([...screenshots, ...imported]);
+    setActiveScreenshotId(imported[0].id);
+  };
+
   const handleElementMouseDown = (
     e: React.MouseEvent,
     type: "headline" | "subheadline" | "image" | "device",
@@ -1285,6 +1325,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         exportSize,
         updateActiveScreenshot,
         addScreenshot,
+        addScreenshotsFromImages,
         removeScreenshot,
         handleElementMouseDown,
         handleElementMouseMove,
