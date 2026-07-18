@@ -74,10 +74,10 @@ export const PunchHoleCamera = ({ isTablet }: PunchHoleCameraProps) => {
 interface CameraElementProps {
   /** Device specification containing camera type info */
   device: DeviceSpec;
-  /** Whether this is a Samsung device */
-  isSamsung: boolean;
-  /** Whether this is a Samsung tablet */
-  isSamsungTablet: boolean;
+  /** Whether this is an Android device (Samsung, Pixel) */
+  isAndroid: boolean;
+  /** Whether this is an Android tablet (e.g. Galaxy Tab) */
+  isAndroidTablet: boolean;
 }
 
 /**
@@ -88,24 +88,24 @@ interface CameraElementProps {
  *
  * @param props - Component props
  * @param props.device - The device specification
- * @param props.isSamsung - Whether the device is Samsung
- * @param props.isSamsungTablet - Whether the device is a Samsung tablet
+ * @param props.isAndroid - Whether the device is Android (Samsung, Pixel)
+ * @param props.isAndroidTablet - Whether the device is an Android tablet
  *
  * @example
  * <CameraElement
  *   device={selectedDevice}
- *   isSamsung={false}
- *   isSamsungTablet={false}
+ *   isAndroid={false}
+ *   isAndroidTablet={false}
  * />
  */
 export const CameraElement = ({
   device,
-  isSamsung,
-  isSamsungTablet,
+  isAndroid,
+  isAndroidTablet,
 }: CameraElementProps) => {
-  // Samsung devices use punch-hole camera
-  if (isSamsung) {
-    return <PunchHoleCamera isTablet={isSamsungTablet} />;
+  // Android devices use punch-hole camera
+  if (isAndroid) {
+    return <PunchHoleCamera isTablet={isAndroidTablet} />;
   }
 
   // Modern iPhones use Dynamic Island
