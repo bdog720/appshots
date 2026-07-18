@@ -1,6 +1,6 @@
 /** Editor keyboard shortcuts: pure resolution, no DOM wiring. */
 
-export type ShortcutAction = "undo" | "redo" | "delete" | "export";
+export type ShortcutAction = "undo" | "redo" | "delete" | "export" | "help";
 
 export interface ShortcutKeyEvent {
   key: string;
@@ -28,6 +28,7 @@ export function resolveShortcut(
   if (mod && key === "y") return "redo";
   if (key === "delete" || key === "backspace") return "delete";
   if (mod && key === "e") return "export";
+  if (key === "?") return "help";
 
   return null;
 }

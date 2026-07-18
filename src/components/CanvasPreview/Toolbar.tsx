@@ -4,7 +4,7 @@
  * Top toolbar for the canvas preview area with screenshot management controls.
  */
 
-import { Plus, Redo2, Undo2 } from "lucide-react";
+import { Keyboard, Plus, Redo2, Undo2 } from "lucide-react";
 import { useEditor } from "../../context/EditorContext";
 
 interface ToolbarProps {
@@ -20,7 +20,7 @@ interface ToolbarProps {
  * Displays undo/redo, the "Add Screenshot" button, and the screenshot count.
  */
 export const Toolbar = ({ onAddScreenshot, screenshotCount }: ToolbarProps) => {
-  const { undo, redo, canUndo, canRedo } = useEditor();
+  const { undo, redo, canUndo, canRedo, setIsShortcutsOpen } = useEditor();
 
   return (
     <div className="h-14 border-b border-white/10 bg-panel flex items-center px-4 gap-3">
@@ -59,6 +59,14 @@ export const Toolbar = ({ onAddScreenshot, screenshotCount }: ToolbarProps) => {
       <span className="text-xs text-zinc-400">
         {screenshotCount} screenshot{screenshotCount !== 1 ? "s" : ""}
       </span>
+      <button
+        onClick={() => setIsShortcutsOpen(true)}
+        aria-label="Keyboard shortcuts"
+        title="Keyboard shortcuts (?)"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <Keyboard className="h-4 w-4" />
+      </button>
     </div>
   );
 };

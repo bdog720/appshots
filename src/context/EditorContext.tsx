@@ -74,6 +74,8 @@ interface EditorContextType {
   setFontPickerScope: (scope: "global" | "screenshot") => void;
   isStarModalOpen: boolean;
   setIsStarModalOpen: (open: boolean) => void;
+  isShortcutsOpen: boolean;
+  setIsShortcutsOpen: (open: boolean) => void;
   selectedDeviceId: string;
   setSelectedDeviceId: (id: string) => void;
   selectedColorId: string;
@@ -153,6 +155,8 @@ interface EditorContextType {
   sendImageToBack: (imageId: string) => void;
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleExport: () => void;
+  /** Non-null while an export is running: how many screenshots are done / total. */
+  exportProgress: { rendered: number; total: number } | null;
   getBackgroundStyle: (screenshot: Screenshot) => string;
   resetEditor: () => void;
 
@@ -387,6 +391,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     "global" | "screenshot"
   >("screenshot");
   const [isStarModalOpen, setIsStarModalOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceIdState] = useState(
     activeProject.selectedDeviceId,
   );
@@ -426,6 +431,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     width: 0,
     height: 0,
   });
+
+  const [exportProgress, setExportProgress] = useState<{
+    rendered: number;
+    total: number;
+  } | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1181,13 +1191,19 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return screenshot.backgroundColor;
   };
 
-  const handleExport = () => {
-    void exportScreenshots({
-      screenshots,
-      exportSize,
-      previewDimensions,
-    });
-    setIsStarModalOpen(true);
+  const handleExport = async () => {
+    setExportProgress({ rendered: 0, total: screenshots.length });
+    try {
+      await exportScreenshots({
+        screenshots,
+        exportSize,
+        previewDimensions,
+        onProgress: (rendered, total) => setExportProgress({ rendered, total }),
+      });
+    } finally {
+      setExportProgress(null);
+      setIsStarModalOpen(true);
+    }
   };
 
   /**
@@ -1234,6 +1250,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setFontPickerScope,
         isStarModalOpen,
         setIsStarModalOpen,
+        isShortcutsOpen,
+        setIsShortcutsOpen,
         selectedDeviceId,
         setSelectedDeviceId,
         selectedColorId,
@@ -1288,6 +1306,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         sendImageToBack,
         handleFileUpload,
         handleExport,
+        exportProgress,
         getBackgroundStyle,
         resetEditor,
         undo,

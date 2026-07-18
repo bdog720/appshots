@@ -16,6 +16,13 @@ interface ExportOptions {
   screenshots: Screenshot[];
   exportSize: ExportSize;
   previewDimensions: { width: number; height: number };
+  /**
+   * Optional progress callback, invoked with the count of screenshots rendered
+   * so far and the total. Purely observational: it does not affect what is
+   * drawn. When provided, the export yields between screenshots so a progress
+   * UI can repaint.
+   */
+  onProgress?: (rendered: number, total: number) => void;
 }
 
 /**
@@ -896,9 +903,13 @@ export const exportScreenshots = async ({
   screenshots,
   exportSize,
   previewDimensions,
+  onProgress,
 }: ExportOptions) => {
   // Wait for fonts to be loaded before exporting
   await document.fonts.ready;
+
+  const total = screenshots.length;
+  onProgress?.(0, total);
 
   const exportedFiles: { name: string; data: string }[] = [];
 
@@ -1040,6 +1051,12 @@ export const exportScreenshots = async ({
     // Add to exported files
     const dataURL = canvas.toDataURL("image/png");
     exportedFiles.push({ name: filename, data: dataURL });
+
+    onProgress?.(i + 1, total);
+    // Yield so a progress UI can repaint between screenshots.
+    if (onProgress && i < screenshots.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
 
   // Download: single file directly, multiple files as ZIP

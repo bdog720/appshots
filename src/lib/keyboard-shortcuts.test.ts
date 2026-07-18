@@ -34,6 +34,10 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(evt({ key: "e", metaKey: true }), { isEditable: false })).toBe("export");
   });
 
+  it("maps ? to help", () => {
+    expect(resolveShortcut(evt({ key: "?" }), { isEditable: false })).toBe("help");
+  });
+
   it("returns null while an editable field is focused", () => {
     expect(resolveShortcut(evt({ key: "z", ctrlKey: true }), { isEditable: true })).toBeNull();
     expect(resolveShortcut(evt({ key: "Backspace" }), { isEditable: true })).toBeNull();

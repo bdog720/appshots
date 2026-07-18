@@ -4,6 +4,8 @@ import { CanvasPreview } from "./CanvasPreview";
 import { FontPicker } from "./FontPicker";
 import { GitHubStarModal } from "./GitHubStarModal";
 import { NarrowScreenNotice } from "./NarrowScreenNotice";
+import { ShortcutsModal } from "./ShortcutsModal";
+import { ExportProgressOverlay } from "./ExportProgressOverlay";
 import { useEditor } from "../context/EditorContext";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
@@ -17,6 +19,8 @@ export const EditorLayout = () => {
     fontPickerScope,
     isStarModalOpen,
     setIsStarModalOpen,
+    isShortcutsOpen,
+    setIsShortcutsOpen,
     activeScreenshot,
     textDefaults,
     setTextDefault,
@@ -43,6 +47,7 @@ export const EditorLayout = () => {
     redo,
     delete: deleteSelection,
     export: handleExport,
+    help: () => setIsShortcutsOpen(true),
   });
 
   return (
@@ -64,6 +69,7 @@ export const EditorLayout = () => {
           </span>
           <button
             onClick={() => setShowBanner(false)}
+            aria-label="Dismiss GitHub star banner"
             className="absolute right-3 text-zinc-500 hover:text-zinc-300"
           >
             <X size={14} />
@@ -92,7 +98,12 @@ export const EditorLayout = () => {
           isOpen={isStarModalOpen}
           onClose={() => setIsStarModalOpen(false)}
         />
+        <ShortcutsModal
+          isOpen={isShortcutsOpen}
+          onClose={() => setIsShortcutsOpen(false)}
+        />
       </div>
+      <ExportProgressOverlay />
     </div>
   );
 };
