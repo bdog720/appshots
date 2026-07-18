@@ -141,6 +141,22 @@ docker run -d -p 8080:80 --name appshots appshots
 
 The image is a multi-stage build: Bun + Vite compile the static bundle, which is then served by nginx (with client-side-routing fallback and long-lived caching for hashed assets). The final image contains only the built assets — no toolchain or source.
 
+### Prebuilt image (Dockge / Portainer / self-host)
+
+Every push to the default branch publishes a multi-arch image (amd64 + arm64) to the GitHub Container Registry via GitHub Actions. Point your compose stack at it — no local build needed:
+
+```yaml
+services:
+  appshots:
+    image: ghcr.io/OWNER/appshots:latest   # e.g. ghcr.io/bdog720/appshots:latest
+    container_name: appshots
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+```
+
+In **Dockge**, create a new Compose stack, paste the above, and deploy. Pull updates later with the stack's **Update** button. (If the package is private, either make it public in the repo's Packages settings or log the host in to `ghcr.io` first.)
+
 ## 🛠️ Tech Stack
 
 - **Framework**: [React 19](https://react.dev/)
