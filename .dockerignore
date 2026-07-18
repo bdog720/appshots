@@ -1,0 +1,27 @@
+# Build artifacts & deps (installed/generated inside the image)
+node_modules
+dist
+
+# VCS & tooling
+.git
+.gitignore
+.vscode
+.github
+
+# Docker (not needed inside the build context)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs & meta
+README.md
+CLAUDE.md
+AGENTS.md
+LICENSE
+
+# Local env & logs
+.env
+.env.*
+*.log
+coverage
+.DS_Store

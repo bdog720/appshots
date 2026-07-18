@@ -1,0 +1,17 @@
+# Run appshots with a single command:
+#
+#   docker compose up -d --build
+#
+# Then open http://localhost:8080
+#
+# Change the host port by setting APPSHOTS_PORT, e.g.:
+#   APPSHOTS_PORT=3000 docker compose up -d --build
+
+services:
+  appshots:
+    build: .
+    image: appshots:latest
+    container_name: appshots
+    ports:
+      - "${APPSHOTS_PORT:-8080}:80"
+    restart: unless-stopped
