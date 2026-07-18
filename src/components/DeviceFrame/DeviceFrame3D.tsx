@@ -16,6 +16,7 @@ import { getFrameBackground } from "./utils";
 import { ScreenContent } from "./ScreenContent";
 import { CameraElement } from "./CameraElements";
 import { IPhoneButtons, SamsungButtons } from "./DeviceButtons";
+import { isAndroidDevice, isAndroidTablet } from "../../lib/device-platform";
 
 interface DeviceFrame3DProps {
   device: DeviceInstance;
@@ -41,8 +42,8 @@ export const DeviceFrame3D = ({
   selectedDevice,
   selectedColor,
 }: DeviceFrame3DProps) => {
-  const isSamsungDevice = selectedDevice.id.startsWith("samsung-");
-  const isSamsungTablet = selectedDevice.id.includes("tab");
+  const isAndroid = isAndroidDevice(selectedDevice.id);
+  const isTablet = isAndroidTablet(selectedDevice.id);
 
   const frameBackground = useMemo(
     () => getFrameBackground(selectedColor),
@@ -113,12 +114,12 @@ export const DeviceFrame3D = ({
           <ScreenContent screenshotSrc={device.screenshotSrc} />
           <CameraElement
             device={selectedDevice}
-            isSamsung={isSamsungDevice}
-            isSamsungTablet={isSamsungTablet}
+            isAndroid={isAndroid}
+            isAndroidTablet={isTablet}
           />
         </div>
 
-        {isSamsungDevice ? (
+        {isAndroid ? (
           <SamsungButtons color={selectedColor} is3d />
         ) : (
           <IPhoneButtons color={selectedColor} is3d />

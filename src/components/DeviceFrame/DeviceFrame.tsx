@@ -19,6 +19,7 @@ import { getFrameBackground } from "./utils";
 import { ScreenContent } from "./ScreenContent";
 import { CameraElement } from "./CameraElements";
 import { IPhoneButtons, SamsungButtons } from "./DeviceButtons";
+import { isAndroidDevice, isAndroidTablet } from "../../lib/device-platform";
 
 interface DeviceFrameProps {
   /** Device instance data containing the image and metadata */
@@ -46,9 +47,9 @@ export const DeviceFrame = ({
   selectedDevice,
   selectedColor,
 }: DeviceFrameProps) => {
-  // Device type detection
-  const isSamsungDevice = selectedDevice.id.startsWith("samsung-");
-  const isSamsungTablet = selectedDevice.id.includes("tab");
+  // Device type detection (Samsung + Pixel share Android camera/buttons)
+  const isAndroid = isAndroidDevice(selectedDevice.id);
+  const isTablet = isAndroidTablet(selectedDevice.id);
 
   // Memoized styles for performance
   const frameStyle = useMemo(
@@ -81,13 +82,13 @@ export const DeviceFrame = ({
         <ScreenContent screenshotSrc={device.screenshotSrc} />
         <CameraElement
           device={selectedDevice}
-          isSamsung={isSamsungDevice}
-          isSamsungTablet={isSamsungTablet}
+          isAndroid={isAndroid}
+          isAndroidTablet={isTablet}
         />
       </div>
 
       {/* Physical buttons */}
-      {isSamsungDevice ? (
+      {isAndroid ? (
         <SamsungButtons color={selectedColor} />
       ) : (
         <IPhoneButtons color={selectedColor} />

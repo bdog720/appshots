@@ -9,6 +9,7 @@ import { gradientPresets } from "../constants";
 import { drawRichText } from "./rich-text-canvas";
 import { getDeviceColorById, getDeviceSpecById } from "./device-instances";
 import { getRenderableDevicesForScreenshot } from "./device-overflow";
+import { isAndroidDevice, isAndroidTablet } from "./device-platform";
 import JSZip from "jszip";
 
 interface ExportOptions {
@@ -257,7 +258,7 @@ const renderDeviceToOffscreen = async (
   selectedColor: DeviceColor,
   screenshotSrc: string | null,
   scaleX: number,
-  isSamsung: boolean,
+  isAndroid: boolean,
 ): Promise<HTMLCanvasElement> => {
   const offscreen = document.createElement("canvas");
   offscreen.width = Math.ceil(deviceWidthPx);
@@ -377,8 +378,8 @@ const renderDeviceToOffscreen = async (
       20 * scaleX,
     ]);
     ctx.fill();
-  } else if (isSamsung) {
-    const isTablet = selectedDevice.id.includes("tab");
+  } else if (isAndroid) {
+    const isTablet = isAndroidTablet(selectedDevice.id);
     const camSize = screenW * (isTablet ? 0.018 : 0.025);
     const camX = isTablet
       ? screenX + screenW * 0.35
@@ -427,7 +428,7 @@ const drawDeviceInstance = async (
   const cornerRadiusY = deviceHeightPx * outerRadiusYPct;
   const frameRadius = Math.min(cornerRadiusX, cornerRadiusY);
   const bezelThickness = deviceWidthPx * 0.012;
-  const isSamsungDevice = selectedDevice.id.startsWith("samsung-");
+  const isAndroid = isAndroidDevice(selectedDevice.id);
 
   if (device.style === "3d") {
     const rotYDeg = device.rotateY ?? -15;
@@ -451,7 +452,7 @@ const drawDeviceInstance = async (
       selectedColor,
       device.screenshotSrc,
       scaleX,
-      isSamsungDevice,
+      isAndroid,
     );
 
     const SLICE_COUNT = 40;
@@ -647,7 +648,7 @@ const drawDeviceInstance = async (
       ctx.restore();
     };
 
-    if (isSamsungDevice) {
+    if (isAndroid) {
       draw3DButton("right", 0.22, 0.05);
       draw3DButton("right", 0.29, 0.06);
       draw3DButton("right", 0.36, 0.06);
@@ -708,7 +709,7 @@ const drawDeviceInstance = async (
     ctx.restore();
   };
 
-  if (isSamsungDevice) {
+  if (isAndroid) {
     drawButton(
       deviceX + deviceWidthPx,
       deviceY + deviceHeightPx * 0.22,
@@ -871,8 +872,8 @@ const drawDeviceInstance = async (
       20 * scaleX,
     ]);
     ctx.fill();
-  } else if (isSamsungDevice) {
-    const isTablet = selectedDevice.id.includes("tab");
+  } else if (isAndroid) {
+    const isTablet = isAndroidTablet(selectedDevice.id);
     const camSize = screenWidthPx * (isTablet ? 0.018 : 0.025);
     const camX = isTablet
       ? screenX + screenWidthPx * 0.35
