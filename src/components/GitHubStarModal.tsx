@@ -11,7 +11,7 @@ const BACKDROP_CLASSES =
   "fixed inset-0 z-[110] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200";
 
 const MODAL_CLASSES =
-  "w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#171717] shadow-[0_32px_120px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-200";
+  "w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-section shadow-[0_32px_120px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-200";
 
 export const GitHubStarModal = ({
   isOpen,
@@ -71,7 +71,7 @@ export const GitHubStarModal = ({
         </div>
 
         <div className="space-y-5 px-6 py-6">
-          <div className="rounded-2xl border border-white/10 bg-[#232325] px-4 py-4 shadow-inner shadow-black/20">
+          <div className="rounded-xl border border-white/10 bg-input px-4 py-4 shadow-inner shadow-black/20">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
               GitHub URL
             </p>

@@ -9,26 +9,26 @@
  */
 export const STYLES = {
   /** Sidebar container */
-  sidebar: "w-96 shrink-0 border-l border-white/10 bg-[#141414] overflow-y-auto",
+  sidebar: "w-96 shrink-0 border-l border-white/10 bg-panel overflow-y-auto",
 
   /** Content wrapper */
   content: "p-4 space-y-6",
 
   /** Section container */
-  section: "rounded-lg bg-[#1e1e1e] p-3",
+  section: "rounded-lg bg-section p-3",
 
   /** Section title */
   sectionTitle:
-    "text-xs font-medium text-gray-300 uppercase tracking-wider mb-3",
+    "text-xs font-medium text-zinc-300 uppercase tracking-wider mb-3",
 
   /** Section content */
   sectionContent: "space-y-3",
 
   /** Label text */
-  label: "text-xs text-gray-400",
+  label: "text-xs text-zinc-400",
 
   /** Small label text */
-  labelSmall: "text-xs text-gray-500",
+  labelSmall: "text-xs text-zinc-500",
 
   /** Range slider */
   rangeSlider: "w-full mt-1 accent-white",
@@ -46,7 +46,7 @@ export const STYLES = {
   toggleActive: "bg-white",
 
   /** Toggle button inactive */
-  toggleInactive: "bg-[#333]",
+  toggleInactive: "bg-raised",
 
   /** Toggle knob */
   toggleKnob: "w-3 h-3 rounded-full bg-black transition-transform",
@@ -64,15 +64,15 @@ export const STYLES = {
   modeButtonActive: "bg-white text-black",
 
   /** Mode button inactive */
-  modeButtonInactive: "bg-[#2a2a2a] text-gray-300",
+  modeButtonInactive: "bg-input text-zinc-300",
 
   /** Upload button */
   uploadButton:
-    "w-full bg-[#2a2a2a] hover:bg-[#333] text-gray-300 text-sm py-2 rounded-md transition-colors",
+    "w-full bg-input hover:bg-raised text-zinc-300 text-sm py-2 rounded-md transition-colors",
 
   /** Dropdown button */
   dropdownButton:
-    "w-full flex items-center justify-between bg-[#2a2a2a] hover:bg-[#333] text-white text-sm rounded-md px-3 py-2 transition-colors border border-transparent hover:border-white/10 outline-none focus:ring-1 focus:ring-white",
+    "w-full flex items-center justify-between bg-input hover:bg-raised text-white text-sm rounded-md px-3 py-2 transition-colors border border-transparent hover:border-white/10 outline-none focus:ring-1 focus:ring-white",
 
   /** Gradient preset button */
   gradientButton: "h-6 rounded-md",
@@ -87,19 +87,19 @@ export const STYLES = {
   overlayItemActive: "bg-white/10 ring-1 ring-white",
 
   /** Overlay item inactive */
-  overlayItemInactive: "bg-[#2a2a2a] hover:bg-[#333]",
+  overlayItemInactive: "bg-input hover:bg-raised",
 
   /** Overlay thumbnail */
   overlayThumbnail: "w-10 h-10 object-cover rounded",
 
   /** Icon button */
-  iconButton: "p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed",
+  iconButton: "p-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed",
 
   /** Delete icon button */
-  iconButtonDelete: "p-1 text-gray-400 hover:text-red-400",
+  iconButtonDelete: "p-1 text-zinc-400 hover:text-red-400",
 
   /** Properties panel */
-  propertiesPanel: "p-3 bg-[#2a2a2a] rounded-lg border border-white/5 space-y-3 mt-2",
+  propertiesPanel: "p-3 bg-input rounded-lg border border-white/5 space-y-3 mt-2",
 } as const;
 
 /**

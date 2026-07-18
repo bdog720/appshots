@@ -41,10 +41,10 @@ export const LayoutSection = ({
       <div className="space-y-3">
         {/* Device Style Toggle */}
         <div>
-          <label className="block text-xs text-gray-400 mb-2">
+          <label className="block text-xs text-zinc-400 mb-2">
             Device Style
           </label>
-          <div className="flex gap-1 p-0.5 bg-[#2a2a2a] rounded-lg">
+          <div className="flex gap-1 p-0.5 bg-input rounded-lg">
             <button
               className={`${STYLES.modeButton} ${!is3D ? STYLES.modeButtonActive : STYLES.modeButtonInactive}`}
               onClick={() => onUpdateDevice({ style: "flat" })}

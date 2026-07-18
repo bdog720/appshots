@@ -41,7 +41,7 @@ export const SwatchColorInput = ({
           type="button"
           onClick={() => addSavedColor(value)}
           title="Save color to palette"
-          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-md bg-[#2a2a2a] text-gray-300 hover:bg-[#333] hover:text-white"
+          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-md bg-input text-zinc-300 hover:bg-raised hover:text-white"
         >
           <Plus size={14} />
         </button>

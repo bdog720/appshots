@@ -19,20 +19,20 @@ export const STYLES = {
 
   /** Modal container */
   modal:
-    "w-full max-w-4xl bg-[#1e1e1e] rounded-xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-white/10",
+    "w-full max-w-4xl bg-section rounded-xl shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-white/10",
 
   /** Section backgrounds */
-  sectionBg: "bg-[#1e1e1e]",
+  sectionBg: "bg-section",
 
   /** Input field base */
   input:
-    "w-full bg-[#2a2a2a] text-white pl-10 pr-4 py-3 rounded-lg border border-white/10 focus:border-white focus:ring-1 focus:ring-white outline-none transition-all placeholder:text-gray-500",
+    "w-full bg-input text-white pl-10 pr-4 py-3 rounded-lg border border-white/10 focus:border-white focus:ring-1 focus:ring-white outline-none transition-all placeholder:text-zinc-500",
 
   /** Icon button */
   iconButton:
-    "p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white",
+    "p-2 hover:bg-white/10 rounded-full transition-colors text-zinc-400 hover:text-white",
 
   /** Cancel button */
   cancelButton:
-    "px-4 py-2 bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md transition-colors text-sm font-medium border border-white/10",
+    "px-4 py-2 bg-input hover:bg-raised text-white rounded-md transition-colors text-sm font-medium border border-white/10",
 } as const;

@@ -38,36 +38,36 @@ export const ICON_SIZE = 16;
  */
 export const STYLES = {
   /** Container wrapper */
-  container: "rounded-lg border border-white/10 bg-[#2a2a2a]",
+  container: "rounded-lg border border-white/10 bg-input",
 
   /** Toolbar section */
   toolbar:
-    "flex items-center gap-0.5 px-1.5 py-1.5 bg-[#1e1e1e] border-b border-white/10 rounded-t-lg",
+    "flex items-center gap-0.5 px-1.5 py-1.5 bg-section border-b border-white/10 rounded-t-lg",
 
   /** Toolbar button base */
   toolbarButton:
     "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 leading-none appearance-none transition-colors",
 
   /** Toolbar button active state */
-  toolbarButtonActive: "bg-blue-500/20 text-blue-400",
+  toolbarButtonActive: "bg-violet-500/20 text-violet-400",
 
   /** Toolbar button inactive state */
-  toolbarButtonInactive: "text-gray-400 hover:text-white hover:bg-white/10",
+  toolbarButtonInactive: "text-zinc-400 hover:text-white hover:bg-white/10",
 
   /** Separator between button groups */
   separator: "w-px h-4 shrink-0 bg-white/10 mx-0.5",
 
   /** Editor content area */
   editor:
-    "min-h-[80px] px-3 py-2 text-sm text-white outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-gray-500 [&:empty]:before:pointer-events-none",
+    "min-h-[80px] px-3 py-2 text-sm text-white outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-zinc-500 [&:empty]:before:pointer-events-none",
 
   /** Placeholder text */
-  placeholder: "absolute top-2 left-3 text-sm text-gray-500 pointer-events-none",
+  placeholder: "absolute top-2 left-3 text-sm text-zinc-500 pointer-events-none",
 
   /** Tooltip wrapper */
   tooltipWrapper: "relative flex shrink-0 group",
 
   /** Tooltip content */
   tooltip:
-    "pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 translate-y-1 rounded-md border border-white/10 bg-[#111111] px-2 py-1 text-[11px] font-medium whitespace-nowrap text-white opacity-0 shadow-lg transition-all duration-150 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100",
+    "pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 translate-y-1 rounded-md border border-white/10 bg-base px-2 py-1 text-[11px] font-medium whitespace-nowrap text-white opacity-0 shadow-lg transition-all duration-150 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100",
 } as const;

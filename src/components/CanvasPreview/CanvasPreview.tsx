@@ -61,7 +61,7 @@ export const CanvasPreview = () => {
       {/* Preview area with horizontal scroll */}
       <div
         ref={canvasContainerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden bg-[#0a0a0a] p-6"
+        className="flex-1 overflow-x-auto overflow-y-hidden bg-base p-6"
       >
         <div className="flex gap-1 h-full min-w-max">
           {screenshots.map((screenshot, index) => {

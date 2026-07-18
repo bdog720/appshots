@@ -24,7 +24,7 @@ export const EditorLayout = () => {
   const [showBanner, setShowBanner] = useState(true);
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-base text-white overflow-hidden">
       {showBanner && (
         <div className="flex items-center justify-center gap-2 bg-zinc-800 px-4 py-1.5 text-xs text-zinc-300 relative shrink-0">
           <Star size={12} className="text-yellow-400 fill-yellow-400" />

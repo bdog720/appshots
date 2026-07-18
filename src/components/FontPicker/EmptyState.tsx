@@ -28,11 +28,11 @@ interface EmptyStateProps {
  * />
  */
 export const EmptyState = ({ searchQuery, onClearSearch }: EmptyStateProps) => (
-  <div className="col-span-full py-12 text-center text-gray-500 flex flex-col items-center gap-2">
+  <div className="col-span-full py-12 text-center text-zinc-500 flex flex-col items-center gap-2">
     <p>No fonts found matching "{searchQuery}"</p>
     <button
       onClick={onClearSearch}
-      className="text-neutral-400 hover:text-neutral-300 text-sm"
+      className="text-zinc-400 hover:text-zinc-300 text-sm"
     >
       Clear search
     </button>

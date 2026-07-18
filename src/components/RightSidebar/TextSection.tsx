@@ -93,7 +93,7 @@ export const TextSection = () => {
   return (
     <SidebarSection title="Text">
       {/* Scope toggle */}
-      <div className="flex gap-1 p-0.5 bg-[#2a2a2a] rounded-lg mb-3">
+      <div className="flex gap-1 p-0.5 bg-input rounded-lg mb-3">
         <button
           className={`${STYLES.modeButton} ${isGlobal ? STYLES.modeButtonActive : STYLES.modeButtonInactive}`}
           onClick={() => setScope("global")}
@@ -108,7 +108,7 @@ export const TextSection = () => {
         </button>
       </div>
 
-      <p className="text-[11px] text-gray-500 mb-3">
+      <p className="text-[11px] text-zinc-500 mb-3">
         {isGlobal
           ? "Applies to every screenshot that hasn't been customized."
           : "Overrides just this screenshot. Reset a value to follow the global default again."}
@@ -122,7 +122,7 @@ export const TextSection = () => {
             <span style={{ fontFamily: `'${source.fontFamily}', sans-serif` }}>
               {source.fontFamily}
             </span>
-            <ChevronDown size={16} className="text-gray-400" />
+            <ChevronDown size={16} className="text-zinc-400" />
           </button>
         </div>
 
