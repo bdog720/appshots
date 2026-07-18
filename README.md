@@ -68,7 +68,7 @@ A free, open-source tool to create stunning, high-converting screenshots for the
 ### 📦 Export
 
 - **Batch export** — export all screenshots at once (ZIP for multiple, PNG for single)
-- **4 export size presets** — 6.7" iPhone, 6.5" iPhone, 5.5" iPhone, 12.9" iPad Pro
+- **App Store & Play Store export presets** — Apple: 6.7"/6.5"/5.5" iPhone, 12.9" iPad Pro; Google Play: 9:16 & 20:9 phone, 7" & 10" tablet, and the 1024×500 feature graphic
 - **Full 3D support** — 3D perspective, edges, and shadows are preserved in exports
 - **Cross-screen layouts preserved** — multi-device overflow compositions export exactly like the on-canvas preview
 - **Pixel-perfect** — exported images match the on-screen preview

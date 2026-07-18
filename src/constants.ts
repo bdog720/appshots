@@ -260,4 +260,36 @@ export const exportSizes: ExportSize[] = [
   },
   { id: "5.5", label: "5.5 inch (iPhone 8 Plus)", width: 1242, height: 2208 },
   { id: "ipad", label: "12.9 inch (iPad Pro)", width: 2048, height: 2732 },
+
+  // --- Google Play Store ---
+  {
+    id: "play-phone-16-9",
+    label: "Play Store — Phone 9:16 (1080 × 1920)",
+    width: 1080,
+    height: 1920,
+  },
+  {
+    id: "play-phone-20-9",
+    label: "Play Store — Phone 20:9 (1080 × 2400)",
+    width: 1080,
+    height: 2400,
+  },
+  {
+    id: "play-tablet-7",
+    label: 'Play Store — 7" Tablet (1200 × 1920)',
+    width: 1200,
+    height: 1920,
+  },
+  {
+    id: "play-tablet-10",
+    label: 'Play Store — 10" Tablet (1600 × 2560)',
+    width: 1600,
+    height: 2560,
+  },
+  {
+    id: "play-feature-graphic",
+    label: "Play Store — Feature Graphic (1024 × 500)",
+    width: 1024,
+    height: 500,
+  },
 ];
