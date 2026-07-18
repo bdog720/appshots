@@ -141,7 +141,219 @@ const GALAXY_TAB_S10_COLORS = [
   },
 ];
 
+// iPhone 17 Pro line (aluminium unibody: Cosmic Orange, Deep Blue, Silver)
+const IPHONE_17_PRO_COLORS = [
+  {
+    id: "cosmic-orange",
+    label: "Cosmic Orange",
+    frame: "#C85A24",
+    frameColors: ["#E0743A", "#C85A24", "#A9481A", "#C85A24", "#E0743A"],
+    screen: "#000",
+  },
+  {
+    id: "deep-blue",
+    label: "Deep Blue",
+    frame: "#2C3A55",
+    frameColors: ["#3E4E6E", "#2C3A55", "#1F293D", "#2C3A55", "#3E4E6E"],
+    screen: "#000",
+  },
+  {
+    id: "silver",
+    label: "Silver",
+    frame: "#E3E3E4",
+    frameColors: ["#F2F2F2", "#E3E3E4", "#D1D1D2", "#E3E3E4", "#F2F2F2"],
+    screen: "#000",
+  },
+];
+
+// iPhone 17 (base: Black, White, Lavender, Sage, Mist Blue)
+const IPHONE_17_COLORS = [
+  {
+    id: "black",
+    label: "Black",
+    frame: "#3B3B3D",
+    frameColors: ["#4E4E50", "#3B3B3D", "#29292B", "#3B3B3D", "#4E4E50"],
+    screen: "#000",
+  },
+  {
+    id: "white",
+    label: "White",
+    frame: "#E6E6E7",
+    frameColors: ["#F4F4F5", "#E6E6E7", "#D4D4D5", "#E6E6E7", "#F4F4F5"],
+    screen: "#000",
+  },
+  {
+    id: "lavender",
+    label: "Lavender",
+    frame: "#D8CFE6",
+    frameColors: ["#E6DEF2", "#D8CFE6", "#C3B8D6", "#D8CFE6", "#E6DEF2"],
+    screen: "#000",
+  },
+  {
+    id: "sage",
+    label: "Sage",
+    frame: "#C6D1BC",
+    frameColors: ["#D6E0CD", "#C6D1BC", "#B0BCA5", "#C6D1BC", "#D6E0CD"],
+    screen: "#000",
+  },
+  {
+    id: "mist-blue",
+    label: "Mist Blue",
+    frame: "#BCD0DC",
+    frameColors: ["#CFE0EA", "#BCD0DC", "#A4BBC8", "#BCD0DC", "#CFE0EA"],
+    screen: "#000",
+  },
+];
+
+// iPhone Air (Space Black, Cloud White, Light Gold, Sky Blue)
+const IPHONE_AIR_COLORS = [
+  {
+    id: "space-black",
+    label: "Space Black",
+    frame: "#2B2B2D",
+    frameColors: ["#3D3D40", "#2B2B2D", "#1B1B1D", "#2B2B2D", "#3D3D40"],
+    screen: "#000",
+  },
+  {
+    id: "cloud-white",
+    label: "Cloud White",
+    frame: "#EDEDEB",
+    frameColors: ["#F8F8F6", "#EDEDEB", "#DBDBD8", "#EDEDEB", "#F8F8F6"],
+    screen: "#000",
+  },
+  {
+    id: "light-gold",
+    label: "Light Gold",
+    frame: "#E6D6B4",
+    frameColors: ["#F1E5C9", "#E6D6B4", "#D2C09B", "#E6D6B4", "#F1E5C9"],
+    screen: "#000",
+  },
+  {
+    id: "sky-blue",
+    label: "Sky Blue",
+    frame: "#AEC6DB",
+    frameColors: ["#C6D9E9", "#AEC6DB", "#95AEC5", "#AEC6DB", "#C6D9E9"],
+    screen: "#000",
+  },
+];
+
+// Pixel 10 Pro / Pro XL (Obsidian, Porcelain, Moonstone, Jade)
+const PIXEL_10_PRO_COLORS = [
+  {
+    id: "obsidian",
+    label: "Obsidian",
+    frame: "#22252A",
+    frameColors: ["#34383E", "#22252A", "#15171B", "#22252A", "#34383E"],
+    screen: "#000",
+  },
+  {
+    id: "porcelain",
+    label: "Porcelain",
+    frame: "#EAE7E1",
+    frameColors: ["#F5F3EF", "#EAE7E1", "#D9D5CD", "#EAE7E1", "#F5F3EF"],
+    screen: "#000",
+  },
+  {
+    id: "moonstone",
+    label: "Moonstone",
+    frame: "#8C97A3",
+    frameColors: ["#A2ADB9", "#8C97A3", "#76818D", "#8C97A3", "#A2ADB9"],
+    screen: "#000",
+  },
+  {
+    id: "jade",
+    label: "Jade",
+    frame: "#9CBBA6",
+    frameColors: ["#B3CEBB", "#9CBBA6", "#85A48F", "#9CBBA6", "#B3CEBB"],
+    screen: "#000",
+  },
+];
+
+// Pixel 10 (base: Obsidian, Frost, Indigo, Lemongrass)
+const PIXEL_10_COLORS = [
+  {
+    id: "obsidian",
+    label: "Obsidian",
+    frame: "#22252A",
+    frameColors: ["#34383E", "#22252A", "#15171B", "#22252A", "#34383E"],
+    screen: "#000",
+  },
+  {
+    id: "frost",
+    label: "Frost",
+    frame: "#E7ECEF",
+    frameColors: ["#F3F6F8", "#E7ECEF", "#D5DBDF", "#E7ECEF", "#F3F6F8"],
+    screen: "#000",
+  },
+  {
+    id: "indigo",
+    label: "Indigo",
+    frame: "#5560A8",
+    frameColors: ["#6C77BE", "#5560A8", "#434D8C", "#5560A8", "#6C77BE"],
+    screen: "#000",
+  },
+  {
+    id: "lemongrass",
+    label: "Lemongrass",
+    frame: "#CBD4A0",
+    frameColors: ["#DBE3B7", "#CBD4A0", "#B4BD87", "#CBD4A0", "#DBE3B7"],
+    screen: "#000",
+  },
+];
+
 export const devices: DeviceSpec[] = [
+  {
+    id: "iphone-17-pro-max",
+    label: "iPhone 17 Pro Max",
+    width: 1320,
+    height: 2868,
+    screenInset: { top: 20, right: 20, bottom: 20, left: 20 },
+    cornerRadius: 110,
+    frameRadius: { outer: "14%/6.5%", inner: "12.5%/5.8%" },
+    notchWidth: 250,
+    notchHeight: 70,
+    hasIsland: true,
+    colors: IPHONE_17_PRO_COLORS,
+  },
+  {
+    id: "iphone-17-pro",
+    label: "iPhone 17 Pro",
+    width: 1206,
+    height: 2622,
+    screenInset: { top: 18, right: 18, bottom: 18, left: 18 },
+    cornerRadius: 100,
+    frameRadius: { outer: "14%/6.5%", inner: "12.5%/5.8%" },
+    notchWidth: 230,
+    notchHeight: 65,
+    hasIsland: true,
+    colors: IPHONE_17_PRO_COLORS,
+  },
+  {
+    id: "iphone-17",
+    label: "iPhone 17",
+    width: 1206,
+    height: 2622,
+    screenInset: { top: 18, right: 18, bottom: 18, left: 18 },
+    cornerRadius: 100,
+    frameRadius: { outer: "14%/6.5%", inner: "12.5%/5.8%" },
+    notchWidth: 230,
+    notchHeight: 65,
+    hasIsland: true,
+    colors: IPHONE_17_COLORS,
+  },
+  {
+    id: "iphone-air",
+    label: "iPhone Air",
+    width: 1260,
+    height: 2736,
+    screenInset: { top: 18, right: 18, bottom: 18, left: 18 },
+    cornerRadius: 105,
+    frameRadius: { outer: "14%/6.5%", inner: "12.5%/5.8%" },
+    notchWidth: 240,
+    notchHeight: 68,
+    hasIsland: true,
+    colors: IPHONE_AIR_COLORS,
+  },
   {
     id: "iphone-16-pro-max",
     label: "iPhone 16 Pro Max",
@@ -422,6 +634,45 @@ export const devices: DeviceSpec[] = [
         screen: "#000",
       },
     ],
+  },
+  {
+    id: "pixel-10-pro-xl",
+    label: "Google Pixel 10 Pro XL",
+    width: 1344,
+    height: 2992,
+    screenInset: { top: 16, right: 16, bottom: 16, left: 16 },
+    cornerRadius: 42,
+    frameRadius: { outer: "5%/2.4%", inner: "4.5%/2.1%" },
+    notchWidth: 0,
+    notchHeight: 0,
+    hasIsland: false,
+    colors: PIXEL_10_PRO_COLORS,
+  },
+  {
+    id: "pixel-10-pro",
+    label: "Google Pixel 10 Pro",
+    width: 1280,
+    height: 2856,
+    screenInset: { top: 16, right: 16, bottom: 16, left: 16 },
+    cornerRadius: 42,
+    frameRadius: { outer: "5%/2.4%", inner: "4.5%/2.1%" },
+    notchWidth: 0,
+    notchHeight: 0,
+    hasIsland: false,
+    colors: PIXEL_10_PRO_COLORS,
+  },
+  {
+    id: "pixel-10",
+    label: "Google Pixel 10",
+    width: 1080,
+    height: 2424,
+    screenInset: { top: 16, right: 16, bottom: 16, left: 16 },
+    cornerRadius: 42,
+    frameRadius: { outer: "5.5%/2.5%", inner: "5%/2.2%" },
+    notchWidth: 0,
+    notchHeight: 0,
+    hasIsland: false,
+    colors: PIXEL_10_COLORS,
   },
   {
     id: "pixel-9-pro-xl",

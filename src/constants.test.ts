@@ -6,6 +6,10 @@ describe("device catalog", () => {
   it("includes the modern Apple and Android devices", () => {
     const ids = devices.map((d) => d.id);
     // iPhones
+    expect(ids).toContain("iphone-17-pro-max");
+    expect(ids).toContain("iphone-17-pro");
+    expect(ids).toContain("iphone-17");
+    expect(ids).toContain("iphone-air");
     expect(ids).toContain("iphone-16-pro-max");
     expect(ids).toContain("iphone-16-pro");
     expect(ids).toContain("iphone-16");
@@ -13,6 +17,9 @@ describe("device catalog", () => {
     expect(ids).toContain("ipad-pro-13-m4");
     expect(ids).toContain("ipad-pro-11-m4");
     // Pixels
+    expect(ids).toContain("pixel-10-pro-xl");
+    expect(ids).toContain("pixel-10-pro");
+    expect(ids).toContain("pixel-10");
     expect(ids).toContain("pixel-9-pro-xl");
     expect(ids).toContain("pixel-9-pro");
     expect(ids).toContain("pixel-9");
