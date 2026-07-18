@@ -114,6 +114,33 @@ bun run build
 
 The built files will be in the `dist/` directory.
 
+## 🐳 Run with Docker
+
+No Bun or Node install required — just Docker.
+
+### Docker Compose (recommended)
+
+```bash
+docker compose up -d --build
+```
+
+Then open **http://localhost:8080**. To use a different port:
+
+```bash
+APPSHOTS_PORT=3000 docker compose up -d --build
+```
+
+Stop it with `docker compose down`.
+
+### Plain Docker
+
+```bash
+docker build -t appshots .
+docker run -d -p 8080:80 --name appshots appshots
+```
+
+The image is a multi-stage build: Bun + Vite compile the static bundle, which is then served by nginx (with client-side-routing fallback and long-lived caching for hashed assets). The final image contains only the built assets — no toolchain or source.
+
 ## 🛠️ Tech Stack
 
 - **Framework**: [React 19](https://react.dev/)
