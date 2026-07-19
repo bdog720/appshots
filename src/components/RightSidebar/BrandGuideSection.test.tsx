@@ -34,3 +34,20 @@ describe("BrandGuideSection guided flow", () => {
     ).toBe("true");
   });
 });
+
+describe("BrandGuideSection apply", () => {
+  it("applies text defaults and brand background after confirming", () => {
+    editor.screenshots = [{ id: "a" }, { id: "b" }] as never;
+    render(<BrandGuideSection />);
+    fireEvent.click(screen.getByRole("button", { name: /^minimal$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /apply brand to project/i }));
+    // Inline confirm appears; click it.
+    fireEvent.click(screen.getByRole("button", { name: /apply to 2 screenshots/i }));
+
+    expect(editor.setTextDefault).toHaveBeenCalledWith("fontFamily", "Inter");
+    expect(editor.setTextDefault).toHaveBeenCalledWith("textColor", expect.any(String));
+    expect(editor.applyBrandBackground).toHaveBeenCalledTimes(1);
+    const arg = editor.applyBrandBackground.mock.calls[0][0];
+    expect(arg.backgroundMode).toBe("solid");
+  });
+});

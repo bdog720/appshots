@@ -37,7 +37,8 @@ const ENERGIES: { value: Energy; label: string }[] = [
 ];
 
 export const BrandGuideSection = () => {
-  const { backgroundDefaults } = useEditor();
+  const { backgroundDefaults, screenshots, setTextDefault, applyBrandBackground } =
+    useEditor();
   const [expanded, setExpanded] = useState(true);
   const [mode, setMode] = useState<Mode>("guided");
   const [brandColor, setBrandColor] = useState<string>(
@@ -46,6 +47,8 @@ export const BrandGuideSection = () => {
   const [character, setCharacter] = useState<Character | null>(null);
   const [energy, setEnergy] = useState<Energy | null>(null);
   const [vibeId, setVibeId] = useState<string>("minimal");
+  const [advancedFont, setAdvancedFont] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   // When both axes are answered, recommend (and select) the matching vibe.
   const recommend = (c: Character | null, e: Energy | null) => {
@@ -57,24 +60,40 @@ export const BrandGuideSection = () => {
     [brandColor, vibeId],
   );
 
+  // Advanced mode lets the user override the resolved font directly; the
+  // background/text-color recipe still comes from the selected vibe.
+  const effective = useMemo(
+    () => (advancedFont ? { ...look, fontFamily: advancedFont } : look),
+    [look, advancedFont],
+  );
+
   // Build a Screenshot-shaped probe so the contrast chip can assess the look.
   const probe = useMemo(
     () =>
       ({
         headline: "Aa",
         subheadline: "Aa",
-        ...look.background,
-        headlineFontSize: look.headlineFontSize,
-        subheadlineFontSize: look.subheadlineFontSize,
+        ...effective.background,
+        headlineFontSize: effective.headlineFontSize,
+        subheadlineFontSize: effective.subheadlineFontSize,
       }) as unknown as Screenshot,
-    [look],
+    [effective],
   );
-  const assessment = assessScreenshotContrast(look.textColor, probe);
+  const assessment = assessScreenshotContrast(effective.textColor, probe);
 
-  const stops = resolveGradientStops(look.background);
+  const stops = resolveGradientStops(effective.background);
   const previewBg = stops
     ? `linear-gradient(180deg, ${stops.from}, ${stops.to})`
-    : look.background.backgroundColor;
+    : effective.background.backgroundColor;
+
+  const applyBrand = () => {
+    setTextDefault("fontFamily", effective.fontFamily);
+    setTextDefault("headlineFontSize", effective.headlineFontSize);
+    setTextDefault("subheadlineFontSize", effective.subheadlineFontSize);
+    setTextDefault("textColor", effective.textColor);
+    applyBrandBackground(effective.background);
+    setConfirming(false);
+  };
 
   return (
     <section className={STYLES.section}>
@@ -188,9 +207,40 @@ export const BrandGuideSection = () => {
           )}
 
           {mode === "advanced" && (
-            <p className="text-[11px] text-zinc-500">
-              Advanced controls appear here (font, background, sizes) — added next.
-            </p>
+            <div className="space-y-2">
+              <label className={STYLES.label}>Font</label>
+              <select
+                value={effective.fontFamily}
+                onChange={(e) => setAdvancedFont(e.target.value)}
+                className={STYLES.dropdownButton}
+              >
+                {VIBES.map((v) => (
+                  <option key={v.id} value={v.fontFamily}>
+                    {v.fontFamily}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-zinc-500">
+                Pick any brand color and font; the background and readable text color
+                are still derived and contrast-checked from your chosen vibe.
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {VIBES.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setVibeId(v.id);
+                      setAdvancedFont(null);
+                    }}
+                    aria-pressed={vibeId === v.id}
+                    aria-label={v.label}
+                    className={`rounded-md px-2 py-1.5 text-left text-xs ${vibeId === v.id ? "ring-2 ring-violet-400 bg-input" : "bg-input/50 hover:bg-input"}`}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Live preview */}
@@ -202,8 +252,8 @@ export const BrandGuideSection = () => {
             >
               <div
                 style={{
-                  color: look.textColor,
-                  fontFamily: `'${look.fontFamily}', sans-serif`,
+                  color: effective.textColor,
+                  fontFamily: `'${effective.fontFamily}', sans-serif`,
                   fontSize: 20,
                   fontWeight: 700,
                 }}
@@ -212,8 +262,8 @@ export const BrandGuideSection = () => {
               </div>
               <div
                 style={{
-                  color: look.textColor,
-                  fontFamily: `'${look.fontFamily}', sans-serif`,
+                  color: effective.textColor,
+                  fontFamily: `'${effective.fontFamily}', sans-serif`,
                   fontSize: 12,
                 }}
               >
@@ -230,14 +280,38 @@ export const BrandGuideSection = () => {
             )}
           </div>
 
-          {/* Apply placeholder — wired in Task 8 */}
-          <button
-            type="button"
-            disabled
-            className={`${STYLES.dropdownButton} justify-center opacity-50 cursor-not-allowed`}
-          >
-            Apply brand to project
-          </button>
+          {/* Apply — two-step inline confirm */}
+          {confirming ? (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={applyBrand}
+                className="flex-1 rounded-md bg-violet-500 px-2 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
+              >
+                Apply to {screenshots.length} screenshot
+                {screenshots.length === 1 ? "" : "s"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded-md bg-input px-2 py-1.5 text-xs text-zinc-300 hover:bg-input/70"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="w-full rounded-md bg-violet-500 px-2 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
+            >
+              Apply brand to project
+            </button>
+          )}
+          <p className="text-[10px] text-zinc-500">
+            Sets your global text + background. Screenshots with a custom background
+            will be reset to the brand look. Undo reverts it.
+          </p>
         </div>
       )}
     </section>
