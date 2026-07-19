@@ -129,7 +129,7 @@ interface VibeRecipe {
 |---|---|---|
 | **Modern** | **Minimal** — Inter, 60/36, solid `mix(brand, near-white, 0.86)` (soft tint) | **Bold** — Poppins, 72/42, gradient `brand → adjustLightness(brand, −22)` |
 | **Friendly** | **Warm** — Nunito, 64/40, solid warm tint `mix(brand, warm-cream, 0.8)` | **Playful** — Quicksand, 76/44, gradient `brand → rotateHue(brand, +32)` |
-| **Classic** | **Elegant** — Playfair Display, 66/38, solid `adjustLightness(brand, −35)` (deep tone) | **Editorial** — Lora, 70/40, gradient `adjustLightness(brand, −30) → brand` |
+| **Classic** | **Elegant** — Playfair Display, 66/38, solid `adjustLightness(brand, −35)` (deep tone) | **Editorial** — Lora, 70/40, deep gradient `adjustLightness(brand, −45) → adjustLightness(brand, −32)` |
 
 All six fonts confirmed present in `google-fonts.ts` (Inter, Poppins, Nunito, Quicksand, Playfair Display, Lora).
 
