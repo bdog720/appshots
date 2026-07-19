@@ -8,7 +8,7 @@
  * docs/superpowers/specs/2026-07-19-design-guidance-and-brand-guide-design.md.
  */
 
-import { gradientPresets } from "../constants";
+import { resolveGradientStops } from "./background-settings";
 import type { Screenshot } from "../types";
 
 export type WcagLevel = "AAA" | "AA" | "fail";
@@ -160,12 +160,8 @@ export function bestReadableText(background: string): string {
 
 /** Resolve the color stops a background presents behind text. */
 function backgroundStops(screenshot: Screenshot): string[] {
-  if (screenshot.backgroundMode === "gradient") {
-    const preset = gradientPresets.find(
-      (p) => p.id === screenshot.gradientPresetId,
-    );
-    if (preset) return [preset.from, preset.to];
-  }
+  const stops = resolveGradientStops(screenshot);
+  if (stops) return [stops.from, stops.to];
   return [screenshot.backgroundColor];
 }
 

@@ -26,7 +26,6 @@ describe("resolveGradientStops", () => {
     expect(
       resolveGradientStops({
         backgroundMode: "gradient",
-        backgroundColor: "#000",
         gradientPresetId: null,
         gradientFrom: "#111111",
         gradientTo: "#222222",
@@ -37,7 +36,6 @@ describe("resolveGradientStops", () => {
   it("falls back to a named preset when custom stops are absent", () => {
     const stops = resolveGradientStops({
       backgroundMode: "gradient",
-      backgroundColor: "#000",
       gradientPresetId: "berry",
     });
     expect(stops).toEqual({ from: "#e1eec3", to: "#f05053" });

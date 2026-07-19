@@ -221,13 +221,20 @@ describe("backgroundContrast", () => {
     expect(backgroundContrast("#ffffff", screenshot)).toBeCloseTo(worst, 5);
   });
 
-  test("gradient mode with an unknown preset falls back to the solid color", () => {
+  test("gradient mode with an unknown preset falls back to the first preset (matching preview/export)", () => {
+    // resolveGradientStops falls back to gradientPresets[0] for an unresolved
+    // preset id, same as the live preview and export pipelines — so the
+    // contrast engine must agree rather than falling back to the solid color.
     const screenshot = makeScreenshot({
       backgroundMode: "gradient",
       gradientPresetId: "does-not-exist",
       backgroundColor: "#000000",
     });
-    expect(backgroundContrast("#ffffff", screenshot)).toBeCloseTo(21, 5);
+    const worst = Math.min(
+      contrastRatio("#ffffff", "#ff7e5f"),
+      contrastRatio("#ffffff", "#feb47b"),
+    );
+    expect(backgroundContrast("#ffffff", screenshot)).toBeCloseTo(worst, 5);
   });
 });
 

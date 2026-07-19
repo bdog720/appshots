@@ -18,7 +18,8 @@ import type {
   Project,
   SelectedElement,
 } from "../types";
-import { devices, exportSizes, gradientPresets } from "../constants";
+import { devices, exportSizes } from "../constants";
+import { resolveGradientStops } from "../lib/background-settings";
 import { exportScreenshots } from "../lib/export-utils";
 import {
   cloneDeviceInstance,
@@ -1222,11 +1223,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getBackgroundStyle = (screenshot: Screenshot) => {
-    if (screenshot.backgroundMode === "gradient") {
-      const preset =
-        gradientPresets.find((p) => p.id === screenshot.gradientPresetId) ??
-        gradientPresets[0];
-      return `linear-gradient(180deg, ${preset.from}, ${preset.to})`;
+    const stops = resolveGradientStops(screenshot);
+    if (stops) {
+      return `linear-gradient(180deg, ${stops.from}, ${stops.to})`;
     }
     return screenshot.backgroundColor;
   };

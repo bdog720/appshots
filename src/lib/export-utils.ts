@@ -5,7 +5,7 @@ import type {
   ExportSize,
   DeviceInstance,
 } from "../types";
-import { gradientPresets } from "../constants";
+import { resolveGradientStops } from "./background-settings";
 import { drawRichText } from "./rich-text-canvas";
 import { getDeviceColorById, getDeviceSpecById } from "./device-instances";
 import { getRenderableDevicesForScreenshot } from "./device-overflow";
@@ -930,13 +930,11 @@ export const exportScreenshots = async ({
     const paddingX = 8 * scaleX;
 
     // Draw background
-    if (screenshot.backgroundMode === "gradient") {
-      const preset =
-        gradientPresets.find((p) => p.id === screenshot.gradientPresetId) ??
-        gradientPresets[0];
+    const stops = resolveGradientStops(screenshot);
+    if (stops) {
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, preset.from);
-      gradient.addColorStop(1, preset.to);
+      gradient.addColorStop(0, stops.from);
+      gradient.addColorStop(1, stops.to);
       ctx.fillStyle = gradient;
     } else {
       ctx.fillStyle = screenshot.backgroundColor;
