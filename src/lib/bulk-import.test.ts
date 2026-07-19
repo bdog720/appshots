@@ -2,7 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buildImportedScreenshots } from "./bulk-import";
 import { createDeviceInstance } from "./device-instances";
 import { DEFAULT_TEXT_SETTINGS } from "./text-settings";
+import type { BackgroundSettings } from "./background-settings";
 import type { Screenshot } from "../types";
+
+const BRAND_GRADIENT_DEFAULTS: BackgroundSettings = {
+  backgroundMode: "gradient",
+  backgroundColor: "#8b5cf6",
+  gradientPresetId: null,
+  gradientFrom: "#8b5cf6",
+  gradientTo: "#4a0cd6",
+};
 
 function makeBase(devices = [createDeviceInstance({ id: "base-dev", screenshotSrc: "OLD" })]): Screenshot {
   return {
@@ -39,6 +48,7 @@ describe("buildImportedScreenshots", () => {
     const result = buildImportedScreenshots({
       base: makeBase(),
       textDefaults: DEFAULT_TEXT_SETTINGS,
+      backgroundDefaults: BRAND_GRADIENT_DEFAULTS,
       images: ["IMG_A", "IMG_B", "IMG_C"],
       generateId: counter(),
     });
@@ -49,25 +59,49 @@ describe("buildImportedScreenshots", () => {
     expect(result[2].devices[0].screenshotSrc).toBe("IMG_C");
   });
 
-  it("inherits background from the base and text from the defaults, with no overlays or overrides", () => {
+  it("inherits text from the defaults, with no overlays or overrides", () => {
     const [s] = buildImportedScreenshots({
       base: makeBase(),
       textDefaults: DEFAULT_TEXT_SETTINGS,
+      backgroundDefaults: BRAND_GRADIENT_DEFAULTS,
       images: ["X"],
       generateId: counter(),
     });
 
-    expect(s.backgroundColor).toBe("#123456");
-    expect(s.backgroundMode).toBe("solid");
     expect(s.fontFamily).toBe(DEFAULT_TEXT_SETTINGS.fontFamily);
     expect(s.overlayImages).toEqual([]);
     expect(s.textOverrides).toEqual([]);
+  });
+
+  it("inherits the project's background default (not the base screenshot's background), un-overridden", () => {
+    // Regression: base has a plain solid background, but a brand "Apply" has set
+    // a custom gradient as the project default. Imported tiles must pick up the
+    // default's gradient stops, not the base's solid color — otherwise they fall
+    // through resolveGradientStops' fallback to the wrong preset gradient.
+    const base = makeBase();
+    expect(base.backgroundMode).toBe("solid");
+
+    const [s] = buildImportedScreenshots({
+      base,
+      textDefaults: DEFAULT_TEXT_SETTINGS,
+      backgroundDefaults: BRAND_GRADIENT_DEFAULTS,
+      images: ["X"],
+      generateId: counter(),
+    });
+
+    expect(s.backgroundMode).toBe("gradient");
+    expect(s.backgroundColor).toBe(BRAND_GRADIENT_DEFAULTS.backgroundColor);
+    expect(s.gradientPresetId).toBeNull();
+    expect(s.gradientFrom).toBe(BRAND_GRADIENT_DEFAULTS.gradientFrom);
+    expect(s.gradientTo).toBe(BRAND_GRADIENT_DEFAULTS.gradientTo);
+    expect(s.backgroundOverride).toBe(false);
   });
 
   it("gives each screenshot and device a fresh id and points activeDeviceId at the primary device", () => {
     const result = buildImportedScreenshots({
       base: makeBase(),
       textDefaults: DEFAULT_TEXT_SETTINGS,
+      backgroundDefaults: BRAND_GRADIENT_DEFAULTS,
       images: ["A", "B"],
       generateId: counter(),
     });
@@ -91,6 +125,7 @@ describe("buildImportedScreenshots", () => {
     const [s] = buildImportedScreenshots({
       base,
       textDefaults: DEFAULT_TEXT_SETTINGS,
+      backgroundDefaults: BRAND_GRADIENT_DEFAULTS,
       images: ["NEW"],
       generateId: counter(),
     });

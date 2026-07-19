@@ -1,27 +1,36 @@
 import type { DeviceInstance, Screenshot } from "../types";
 import type { TextSettings } from "./text-settings";
 import { cloneDeviceInstance, createDeviceInstance } from "./device-instances";
+import {
+  pickBackgroundSettings,
+  type BackgroundSettings,
+} from "./background-settings";
 
 interface BuildImportedScreenshotsParams {
-  /** The current screenshot whose style (background, devices) new tiles inherit. */
+  /** The current screenshot whose style (devices) new tiles inherit. */
   base: Screenshot;
   /** Project text defaults applied to the new tiles' text. */
   textDefaults: TextSettings;
+  /** Project background default new tiles inherit (they start un-overridden). */
+  backgroundDefaults: BackgroundSettings;
   /** Image data URLs, one per new tile, in the order they should appear. */
   images: string[];
   generateId: () => string;
 }
 
 /**
- * Build one screenshot tile per imported image. Each tile is cloned from the
- * current screenshot's style so an imported set looks consistent, carries the
- * image on its primary device (any additional devices are cleared of their
- * image), and gets fresh ids. Overlays are not copied; text uses the same
+ * Build one screenshot tile per imported image. Each tile clones the current
+ * screenshot's devices so an imported set looks consistent, carries the image
+ * on its primary device (any additional devices are cleared of their image),
+ * and gets fresh ids. Background comes from the project default (not `base`)
+ * so tiles inherit brand-applied gradients the same way `addScreenshot` does,
+ * and starts un-overridden. Overlays are not copied; text uses the same
  * placeholders a normal "Add Screenshot" uses.
  */
 export function buildImportedScreenshots({
   base,
   textDefaults,
+  backgroundDefaults,
   images,
   generateId,
 }: BuildImportedScreenshotsParams): Screenshot[] {
@@ -40,9 +49,7 @@ export function buildImportedScreenshots({
       id: generateId(),
       headline: "New Screenshot",
       subheadline: "Add your description here",
-      backgroundColor: base.backgroundColor,
-      backgroundMode: base.backgroundMode,
-      gradientPresetId: base.gradientPresetId,
+      ...pickBackgroundSettings(backgroundDefaults),
       textColor: textDefaults.textColor,
       headlineX: 50,
       headlineY: 10,

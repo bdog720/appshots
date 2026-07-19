@@ -890,6 +890,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     const imported = buildImportedScreenshots({
       base: activeScreenshot,
       textDefaults,
+      backgroundDefaults,
       images,
       generateId,
     });

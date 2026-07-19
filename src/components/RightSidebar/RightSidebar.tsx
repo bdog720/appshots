@@ -37,6 +37,7 @@ export const RightSidebar = () => {
   const {
     activeScreenshot,
     activeDevice,
+    backgroundDefaults,
     updateActiveScreenshot,
     setActiveScreenshotText,
     setBackgroundDefault,
@@ -116,6 +117,7 @@ export const RightSidebar = () => {
         <AppearanceSection
           screenshot={activeScreenshot}
           gradientPresets={gradientPresets}
+          backgroundDefaults={backgroundDefaults}
           onSetBackgroundDefault={setBackgroundDefault}
           onSetScreenshotBackground={setActiveScreenshotBackground}
           onResetScreenshotBackground={resetActiveScreenshotBackground}

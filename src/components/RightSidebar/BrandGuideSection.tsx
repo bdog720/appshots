@@ -68,6 +68,12 @@ export const BrandGuideSection = () => {
   );
 
   // Build a Screenshot-shaped probe so the contrast chip can assess the look.
+  // `assessScreenshotContrast` (via backgroundContrast/resolveGradientStops and
+  // visibleElements) currently only reads: backgroundMode, backgroundColor,
+  // gradientPresetId, gradientFrom, gradientTo, headline, subheadline,
+  // headlineFontSize, subheadlineFontSize. The cast below is intentional —
+  // it's a partial Screenshot carrying exactly those fields — and must be kept
+  // in sync if the contrast engine starts reading more of Screenshot.
   const probe = useMemo(
     () =>
       ({

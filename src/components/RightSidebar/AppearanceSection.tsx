@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import type { Screenshot, GradientPreset, BackgroundSettings } from "../../types";
+import { pickBackgroundSettings } from "../../lib/background-settings";
 import { SidebarSection } from "./SidebarSection";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { ContrastIndicator } from "./ContrastIndicator";
@@ -17,6 +18,8 @@ import { STYLES } from "./constants";
 interface AppearanceSectionProps {
   screenshot: Screenshot;
   gradientPresets: GradientPreset[];
+  /** Project background default; shown by the picker/indicator in Global scope. */
+  backgroundDefaults: BackgroundSettings;
   onSetBackgroundDefault: (patch: Partial<BackgroundSettings>) => void;
   onSetScreenshotBackground: (patch: Partial<BackgroundSettings>) => void;
   onResetScreenshotBackground: () => void;
@@ -28,6 +31,7 @@ type Scope = "global" | "screenshot";
 export const AppearanceSection = ({
   screenshot,
   gradientPresets,
+  backgroundDefaults,
   onSetBackgroundDefault,
   onSetScreenshotBackground,
   onResetScreenshotBackground,
@@ -36,6 +40,15 @@ export const AppearanceSection = ({
   const [scope, setScope] = useState<Scope>("global");
   const isGlobal = scope === "global";
   const isOverridden = screenshot.backgroundOverride === true;
+
+  // In Global scope, edits route to the project default rather than the active
+  // screenshot (which may be overridden and thus untouched by that edit). Feed
+  // the picker/indicator a merged view so they reflect the default being edited
+  // instead of a stale, possibly-overridden screenshot background. Text fields
+  // still come from the real screenshot.
+  const pickerScreenshot = isGlobal
+    ? { ...screenshot, ...pickBackgroundSettings(backgroundDefaults) }
+    : screenshot;
 
   const onUpdate = (patch: Partial<Screenshot>) => {
     const bgPatch = patch as Partial<BackgroundSettings>;
@@ -74,13 +87,13 @@ export const AppearanceSection = ({
 
       <div className="space-y-4">
         <BackgroundPicker
-          screenshot={screenshot}
+          screenshot={pickerScreenshot}
           gradientPresets={gradientPresets}
           onUpdateScreenshot={onUpdate}
         />
         <ContrastIndicator
           textColor={screenshot.textColor}
-          screenshot={screenshot}
+          screenshot={pickerScreenshot}
           onFix={onFixTextColor}
         />
       </div>
