@@ -22,6 +22,7 @@ import { ContentSection } from "./ContentSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { OverlayImagesSection } from "./OverlayImagesSection";
 import { DesignCheckSection } from "./DesignCheckSection";
+import { BrandGuideSection } from "./BrandGuideSection";
 import { STYLES } from "./constants";
 
 /**
@@ -64,6 +65,8 @@ export const RightSidebar = () => {
   return (
     <aside className={STYLES.sidebar}>
       <div className={STYLES.content}>
+        <BrandGuideSection />
+
         <DesignCheckSection />
 
         <DeviceInstancesSection
