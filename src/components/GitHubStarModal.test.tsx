@@ -29,4 +29,16 @@ describe("GitHubStarModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /maybe later/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("closes when the backdrop is clicked but not the dialog body", () => {
+    const onClose = vi.fn();
+    render(<GitHubStarModal isOpen onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
+
+    const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

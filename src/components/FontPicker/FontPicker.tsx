@@ -11,8 +11,9 @@
  * - Animated transitions
  */
 
-import { useState, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { googleFonts } from "../../lib/google-fonts";
+import { useModalDismiss } from "../../lib/useModalDismiss";
 import { FontPickerHeader } from "./FontPickerHeader";
 import { SearchInput } from "./SearchInput";
 import { FontGrid } from "./FontGrid";
@@ -58,6 +59,9 @@ export const FontPicker = ({
   onSelect,
 }: FontPickerProps) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useModalDismiss({ isOpen, onClose, containerRef: modalRef });
 
   // Filter fonts based on search query
   const filteredFonts = useMemo(
@@ -78,8 +82,16 @@ export const FontPicker = ({
   if (!isOpen) return null;
 
   return (
-    <div className={STYLES.backdrop}>
-      <div className={STYLES.modal} onClick={(e) => e.stopPropagation()}>
+    <div className={STYLES.backdrop} onClick={onClose}>
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Select a Google Font"
+        tabIndex={-1}
+        className={STYLES.modal}
+        onClick={(e) => e.stopPropagation()}
+      >
         <FontPickerHeader onClose={onClose} />
 
         <SearchInput value={searchQuery} onChange={setSearchQuery} />

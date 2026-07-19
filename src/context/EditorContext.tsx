@@ -18,7 +18,16 @@ import type {
   Project,
   SelectedElement,
 } from "../types";
-import { devices, exportSizes, gradientPresets } from "../constants";
+import { devices, exportSizes } from "../constants";
+import {
+  DEFAULT_BACKGROUND_SETTINGS,
+  applyBackgroundDefaultToScreenshots,
+  overrideScreenshotBackground,
+  resetScreenshotBackground as resetScreenshotBackgroundFields,
+  pickBackgroundSettings,
+  resolveGradientStops,
+  type BackgroundSettings,
+} from "../lib/background-settings";
 import { exportScreenshots } from "../lib/export-utils";
 import {
   cloneDeviceInstance,
@@ -41,6 +50,8 @@ import {
   deriveTextOverrides,
 } from "../lib/text-settings";
 import { addColorToPalette, removeColorFromPalette } from "../lib/saved-colors";
+import { useSnapshotHistory } from "../lib/useSnapshotHistory";
+import { buildImportedScreenshots } from "../lib/bulk-import";
 import {
   serializeProject,
   parseProjectFile,
@@ -49,6 +60,17 @@ import {
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
+}
+
+/** Read a File as a data URL, resolving to null if it can't be read. */
+function readFileAsDataURL(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 interface EditorContextType {
@@ -73,6 +95,8 @@ interface EditorContextType {
   setFontPickerScope: (scope: "global" | "screenshot") => void;
   isStarModalOpen: boolean;
   setIsStarModalOpen: (open: boolean) => void;
+  isShortcutsOpen: boolean;
+  setIsShortcutsOpen: (open: boolean) => void;
   selectedDeviceId: string;
   setSelectedDeviceId: (id: string) => void;
   selectedColorId: string;
@@ -100,6 +124,16 @@ interface EditorContextType {
   ) => void;
   /** Clear an override on the active screenshot, reverting to the global default */
   resetActiveScreenshotText: (key: TextSettingKey) => void;
+  /** Project-level background default */
+  backgroundDefaults: BackgroundSettings;
+  /** Update the background default and propagate to non-overriding screenshots */
+  setBackgroundDefault: (patch: Partial<BackgroundSettings>) => void;
+  /** Override the background on the active screenshot */
+  setActiveScreenshotBackground: (patch: Partial<BackgroundSettings>) => void;
+  /** Clear the active screenshot's background override */
+  resetActiveScreenshotBackground: () => void;
+  /** Set the default AND clear every screenshot's override so all inherit it */
+  applyBrandBackground: (settings: BackgroundSettings) => void;
   /** Project-level saved color swatches */
   savedColors: string[];
   addSavedColor: (color: string) => void;
@@ -123,6 +157,8 @@ interface EditorContextType {
   // Actions
   updateActiveScreenshot: (updates: Partial<Screenshot>) => void;
   addScreenshot: () => void;
+  /** Create one new screenshot tile per selected image file (appended). */
+  addScreenshotsFromImages: (files: FileList | File[]) => void;
   removeScreenshot: (id: string) => void;
   handleElementMouseDown: (
     e: React.MouseEvent,
@@ -152,8 +188,16 @@ interface EditorContextType {
   sendImageToBack: (imageId: string) => void;
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleExport: () => void;
+  /** Non-null while an export is running: how many screenshots are done / total. */
+  exportProgress: { rendered: number; total: number } | null;
   getBackgroundStyle: (screenshot: Screenshot) => string;
   resetEditor: () => void;
+
+  // Undo / redo over editor content
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
@@ -177,6 +221,14 @@ type LegacyProjectFields = {
   savedColors?: string[];
 };
 
+/** The undoable slice of editor state (the active project's content). */
+interface EditorSnapshot {
+  screenshots: Screenshot[];
+  textDefaults: TextSettings;
+  backgroundDefaults: BackgroundSettings;
+  savedColors: string[];
+}
+
 // Default screenshot for new editors
 const createDefaultScreenshot = (
   defaultDeviceId: string = devices[0].id,
@@ -195,6 +247,7 @@ const createDefaultScreenshot = (
     backgroundColor: "#8b5cf6",
     backgroundMode: "solid",
     gradientPresetId: null,
+    backgroundOverride: false,
     textColor: "#ffffff",
     headlineX: 50,
     headlineY: 10,
@@ -260,6 +313,9 @@ const normalizeScreenshot = (
     // resolved values against the defaults so current appearance is preserved.
     textOverrides:
       screenshot.textOverrides ?? deriveTextOverrides(resolvedText, textDefaults),
+    // Legacy screenshots (no flag persisted) must keep their own background
+    // rather than start inheriting a newly-introduced project default.
+    backgroundOverride: screenshot.backgroundOverride ?? true,
   };
 };
 
@@ -308,6 +364,7 @@ const normalizeProject = (project: Project & LegacyProjectFields): Project => {
     selectedDeviceId: fallbackDeviceId,
     selectedColorId: fallbackColorId,
     textDefaults,
+    backgroundDefaults: project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
     savedColors: project.savedColors ?? [],
     screenshots: normalizedScreenshots,
     activeScreenshotId:
@@ -332,6 +389,7 @@ const createDefaultProject = (name: string = "My Project"): Project => {
     exportSizeId: exportSizes[0].id,
     activeScreenshotId: defaultScreenshot.id,
     textDefaults: { ...DEFAULT_TEXT_SETTINGS },
+    backgroundDefaults: { ...DEFAULT_BACKGROUND_SETTINGS },
     savedColors: [],
   };
 };
@@ -373,6 +431,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     "global" | "screenshot"
   >("screenshot");
   const [isStarModalOpen, setIsStarModalOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceIdState] = useState(
     activeProject.selectedDeviceId,
   );
@@ -391,6 +450,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [textDefaults, setTextDefaultsState] = useState<TextSettings>(
     activeProject.textDefaults,
   );
+  const [backgroundDefaults, setBackgroundDefaultsState] =
+    useState<BackgroundSettings>(
+      activeProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
   const [savedColors, setSavedColorsState] = useState<string[]>(
     activeProject.savedColors,
   );
@@ -413,6 +476,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     height: 0,
   });
 
+  const [exportProgress, setExportProgress] = useState<{
+    rendered: number;
+    total: number;
+  } | null>(null);
+
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -430,6 +498,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               exportSizeId,
               activeScreenshotId,
               textDefaults,
+              backgroundDefaults,
               savedColors,
               updatedAt: Date.now(),
             }
@@ -444,6 +513,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     exportSizeId,
     activeScreenshotId,
     textDefaults,
+    backgroundDefaults,
     savedColors,
   ]);
 
@@ -456,6 +526,28 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   useEditorPersistence({
     projects,
     activeProjectId,
+  });
+
+  // Undo / redo over the active project's content. Rapid edits (drags, slider
+  // sweeps, typing bursts) coalesce into a single step via debounced recording.
+  const applyHistorySnapshot = useCallback((snapshot: EditorSnapshot) => {
+    setScreenshotsState(snapshot.screenshots);
+    setTextDefaultsState(snapshot.textDefaults);
+    setBackgroundDefaultsState(snapshot.backgroundDefaults);
+    setSavedColorsState(snapshot.savedColors);
+    setSelectedElement(null);
+  }, []);
+
+  const {
+    undo,
+    redo,
+    reset: resetHistory,
+    canUndo,
+    canRedo,
+  } = useSnapshotHistory<EditorSnapshot>({
+    value: { screenshots, textDefaults, backgroundDefaults, savedColors },
+    deps: [screenshots, textDefaults, backgroundDefaults, savedColors],
+    apply: applyHistorySnapshot,
   });
 
   // Wrapper functions that update both local state and project
@@ -539,6 +631,45 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Update the background default and push it into every inheriting screenshot.
+  const setBackgroundDefault = (patch: Partial<BackgroundSettings>) => {
+    const next = { ...backgroundDefaults, ...patch };
+    setBackgroundDefaultsState(next);
+    setScreenshotsState((prev) => applyBackgroundDefaultToScreenshots(prev, next));
+  };
+
+  // Override the background on the active screenshot only.
+  const setActiveScreenshotBackground = (patch: Partial<BackgroundSettings>) => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId ? overrideScreenshotBackground(s, patch) : s,
+      ),
+    );
+  };
+
+  // Clear the active screenshot's override, reverting to the default.
+  const resetActiveScreenshotBackground = () => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId
+          ? resetScreenshotBackgroundFields(s, backgroundDefaults)
+          : s,
+      ),
+    );
+  };
+
+  // Set the default AND clear all overrides so every screenshot follows it.
+  const applyBrandBackground = (settings: BackgroundSettings) => {
+    setBackgroundDefaultsState(settings);
+    setScreenshotsState((prev) =>
+      prev.map((s) => ({
+        ...s,
+        ...pickBackgroundSettings(settings),
+        backgroundOverride: false,
+      })),
+    );
+  };
+
   const addSavedColor = (color: string) => {
     setSavedColorsState((prev) => addColorToPalette(prev, color));
   };
@@ -588,8 +719,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(project.screenshots);
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
+    setBackgroundDefaultsState(
+      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
+    resetHistory({
+      screenshots: project.screenshots,
+      textDefaults: project.textDefaults,
+      backgroundDefaults:
+        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      savedColors: project.savedColors,
+    });
   };
 
   // Load a fully-formed project into the workspace as the active project.
@@ -603,8 +744,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(project.screenshots);
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
+    setBackgroundDefaultsState(
+      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
+    resetHistory({
+      screenshots: project.screenshots,
+      textDefaults: project.textDefaults,
+      backgroundDefaults:
+        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      savedColors: project.savedColors,
+    });
   };
 
   const exportProject = (id: string) => {
@@ -695,9 +846,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       id: generateId(),
       headline: "New Screenshot",
       subheadline: "Add your description here",
-      backgroundColor: activeScreenshot.backgroundColor,
-      backgroundMode: activeScreenshot.backgroundMode,
-      gradientPresetId: activeScreenshot.gradientPresetId,
+      // New screenshots inherit the project's background default (Model A).
+      ...pickBackgroundSettings(backgroundDefaults),
+      backgroundOverride: false,
       // New screenshots inherit the project's global text defaults (Model A).
       textColor: textDefaults.textColor,
       headlineX: 50,
@@ -719,6 +870,33 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     newScreenshot.activeDeviceId = newScreenshot.devices[0].id;
     setScreenshots([...screenshots, newScreenshot]);
     setActiveScreenshotId(newScreenshot.id);
+  };
+
+  // Create one screenshot tile per selected image, appended after the existing
+  // tiles and cloned from the current tile's style. Non-image or unreadable
+  // files are skipped. The whole import lands as a single history step.
+  const addScreenshotsFromImages = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+
+    const results = await Promise.all(imageFiles.map(readFileAsDataURL));
+    const images = results.filter(
+      (src): src is string => typeof src === "string" && src.length > 0,
+    );
+    if (images.length === 0) return;
+
+    const imported = buildImportedScreenshots({
+      base: activeScreenshot,
+      textDefaults,
+      backgroundDefaults,
+      images,
+      generateId,
+    });
+
+    setScreenshots([...screenshots, ...imported]);
+    setActiveScreenshotId(imported[0].id);
   };
 
   const handleElementMouseDown = (
@@ -1127,22 +1305,26 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getBackgroundStyle = (screenshot: Screenshot) => {
-    if (screenshot.backgroundMode === "gradient") {
-      const preset =
-        gradientPresets.find((p) => p.id === screenshot.gradientPresetId) ??
-        gradientPresets[0];
-      return `linear-gradient(180deg, ${preset.from}, ${preset.to})`;
+    const stops = resolveGradientStops(screenshot);
+    if (stops) {
+      return `linear-gradient(180deg, ${stops.from}, ${stops.to})`;
     }
     return screenshot.backgroundColor;
   };
 
-  const handleExport = () => {
-    void exportScreenshots({
-      screenshots,
-      exportSize,
-      previewDimensions,
-    });
-    setIsStarModalOpen(true);
+  const handleExport = async () => {
+    setExportProgress({ rendered: 0, total: screenshots.length });
+    try {
+      await exportScreenshots({
+        screenshots,
+        exportSize,
+        previewDimensions,
+        onProgress: (rendered, total) => setExportProgress({ rendered, total }),
+      });
+    } finally {
+      setExportProgress(null);
+      setIsStarModalOpen(true);
+    }
   };
 
   /**
@@ -1159,9 +1341,19 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(defaultProject.screenshots);
     setActiveScreenshotIdState(defaultProject.activeScreenshotId);
     setTextDefaultsState(defaultProject.textDefaults);
+    setBackgroundDefaultsState(
+      defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(defaultProject.savedColors);
     setSelectedElement(null);
     setIsStarModalOpen(false);
+    resetHistory({
+      screenshots: defaultProject.screenshots,
+      textDefaults: defaultProject.textDefaults,
+      backgroundDefaults:
+        defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      savedColors: defaultProject.savedColors,
+    });
   };
 
   return (
@@ -1184,6 +1376,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setFontPickerScope,
         isStarModalOpen,
         setIsStarModalOpen,
+        isShortcutsOpen,
+        setIsShortcutsOpen,
         selectedDeviceId,
         setSelectedDeviceId,
         selectedColorId,
@@ -1201,6 +1395,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setTextDefault,
         setActiveScreenshotText,
         resetActiveScreenshotText,
+        backgroundDefaults,
+        setBackgroundDefault,
+        setActiveScreenshotBackground,
+        resetActiveScreenshotBackground,
+        applyBrandBackground,
         savedColors,
         addSavedColor,
         removeSavedColor,
@@ -1217,6 +1416,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         exportSize,
         updateActiveScreenshot,
         addScreenshot,
+        addScreenshotsFromImages,
         removeScreenshot,
         handleElementMouseDown,
         handleElementMouseMove,
@@ -1238,8 +1438,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         sendImageToBack,
         handleFileUpload,
         handleExport,
+        exportProgress,
         getBackgroundStyle,
         resetEditor,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
       }}
     >
       {children}

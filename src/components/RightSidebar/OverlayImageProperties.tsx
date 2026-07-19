@@ -46,14 +46,14 @@ export const OverlayImageProperties = ({
     />
 
     <div>
-      <label className="block text-xs text-gray-400 mb-1">Layer Position</label>
+      <label className="block text-xs text-zinc-400 mb-1">Layer Position</label>
       <div className="flex gap-1">
         <button
           onClick={() => onLayerChange("behind")}
           className={`${STYLES.modeButton} transition-colors ${
             image.layer === "behind"
               ? STYLES.modeButtonActive
-              : "bg-[#333] text-gray-300 hover:bg-[#444]"
+              : "bg-input text-zinc-300 hover:bg-raised"
           }`}
         >
           Behind Device
@@ -63,7 +63,7 @@ export const OverlayImageProperties = ({
           className={`${STYLES.modeButton} transition-colors ${
             (image.layer ?? "front") === "front"
               ? STYLES.modeButtonActive
-              : "bg-[#333] text-gray-300 hover:bg-[#444]"
+              : "bg-input text-zinc-300 hover:bg-raised"
           }`}
         >
           In Front

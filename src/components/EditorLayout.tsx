@@ -3,10 +3,14 @@ import { RightSidebar } from "./RightSidebar";
 import { CanvasPreview } from "./CanvasPreview";
 import { FontPicker } from "./FontPicker";
 import { GitHubStarModal } from "./GitHubStarModal";
+import { NarrowScreenNotice } from "./NarrowScreenNotice";
+import { ShortcutsModal } from "./ShortcutsModal";
+import { ExportProgressOverlay } from "./ExportProgressOverlay";
 import { useEditor } from "../context/EditorContext";
+import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
 import { Star, X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 export const EditorLayout = () => {
   const {
@@ -15,16 +19,40 @@ export const EditorLayout = () => {
     fontPickerScope,
     isStarModalOpen,
     setIsStarModalOpen,
+    isShortcutsOpen,
+    setIsShortcutsOpen,
     activeScreenshot,
     textDefaults,
     setTextDefault,
     setActiveScreenshotText,
+    undo,
+    redo,
+    selectedElement,
+    removeDevice,
+    removeOverlayImage,
+    handleExport,
   } = useEditor();
 
   const [showBanner, setShowBanner] = useState(true);
 
+  const deleteSelection = useCallback(() => {
+    if (!selectedElement?.id) return;
+    if (selectedElement.type === "device") removeDevice(selectedElement.id);
+    else if (selectedElement.type === "image")
+      removeOverlayImage(selectedElement.id);
+  }, [selectedElement, removeDevice, removeOverlayImage]);
+
+  useKeyboardShortcuts({
+    undo,
+    redo,
+    delete: deleteSelection,
+    export: handleExport,
+    help: () => setIsShortcutsOpen(true),
+  });
+
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-base text-white overflow-hidden">
+      <NarrowScreenNotice />
       {showBanner && (
         <div className="flex items-center justify-center gap-2 bg-zinc-800 px-4 py-1.5 text-xs text-zinc-300 relative shrink-0">
           <Star size={12} className="text-yellow-400 fill-yellow-400" />
@@ -41,6 +69,7 @@ export const EditorLayout = () => {
           </span>
           <button
             onClick={() => setShowBanner(false)}
+            aria-label="Dismiss GitHub star banner"
             className="absolute right-3 text-zinc-500 hover:text-zinc-300"
           >
             <X size={14} />
@@ -69,7 +98,12 @@ export const EditorLayout = () => {
           isOpen={isStarModalOpen}
           onClose={() => setIsStarModalOpen(false)}
         />
+        <ShortcutsModal
+          isOpen={isShortcutsOpen}
+          onClose={() => setIsShortcutsOpen(false)}
+        />
       </div>
+      <ExportProgressOverlay />
     </div>
   );
 };

@@ -37,8 +37,8 @@ export const OverlayImageItem = ({
       className={STYLES.overlayThumbnail}
     />
     <div className="flex-1 min-w-0">
-      <p className="text-xs text-gray-300 truncate">Image {index + 1}</p>
-      <p className="text-[10px] text-gray-500">
+      <p className="text-xs text-zinc-300 truncate">Image {index + 1}</p>
+      <p className="text-[10px] text-zinc-500">
         Layer {index + 1} of {totalCount}
       </p>
     </div>
@@ -51,6 +51,7 @@ export const OverlayImageItem = ({
         disabled={index === 0}
         className={STYLES.iconButton}
         title="Send backward"
+        aria-label="Move image backward"
       >
         <ArrowDown className="w-3.5 h-3.5" />
       </button>
@@ -62,6 +63,7 @@ export const OverlayImageItem = ({
         disabled={index === totalCount - 1}
         className={STYLES.iconButton}
         title="Bring forward"
+        aria-label="Move image forward"
       >
         <ArrowUp className="w-3.5 h-3.5" />
       </button>
@@ -72,6 +74,7 @@ export const OverlayImageItem = ({
         }}
         className={STYLES.iconButtonDelete}
         title="Remove"
+        aria-label="Remove image"
       >
         <X className="w-3.5 h-3.5" />
       </button>

@@ -26,7 +26,7 @@ export const SelectionHandles = () => (
     {HANDLE_POSITIONS.map((pos, index) => (
       <div
         key={index}
-        className={`absolute pointer-events-none ${pos.className} w-3 h-3 bg-white border-2 border-neutral-400 rounded-full shadow-sm`}
+        className={`absolute pointer-events-none ${pos.className} w-3 h-3 bg-white border-2 border-zinc-400 rounded-full shadow-sm`}
       />
     ))}
   </>

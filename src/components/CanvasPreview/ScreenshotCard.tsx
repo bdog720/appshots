@@ -8,6 +8,7 @@ import type { RefObject } from "react";
 import type { Screenshot, ExportSize, SelectedElement } from "../../types";
 import type { RenderableDevice } from "../../lib/device-overflow";
 import { RemoveButton } from "./RemoveButton";
+import { ContrastWarningDot } from "./ContrastWarningDot";
 import { OverlayImage } from "./OverlayImage";
 import { TextElement } from "./TextElement";
 import { DeviceContainer } from "./DeviceContainer";
@@ -113,6 +114,9 @@ export const ScreenshotCard = ({
     >
       {/* Remove button */}
       {canRemove && <RemoveButton onRemove={onRemove} />}
+
+      {/* Readability warning marker (editor chrome, not exported) */}
+      <ContrastWarningDot screenshot={screenshot} />
 
       {/* Content layer */}
       <div className="absolute inset-0 select-none">

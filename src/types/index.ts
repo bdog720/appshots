@@ -1,6 +1,8 @@
 import type { TextSettings, TextSettingKey } from "../lib/text-settings";
+import type { BackgroundSettings } from "../lib/background-settings";
 
 export type { TextSettings, TextSettingKey };
+export type { BackgroundSettings };
 
 export type DeviceColor = {
   id: string;
@@ -83,6 +85,10 @@ export type Screenshot = {
   backgroundColor: string;
   backgroundMode: "solid" | "gradient" | "image";
   gradientPresetId: string | null;
+  /** Custom gradient start (brand-derived; overrides the named preset). */
+  gradientFrom?: string;
+  /** Custom gradient end. */
+  gradientTo?: string;
   textColor: string;
   headlineX: number;
   headlineY: number;
@@ -100,6 +106,8 @@ export type Screenshot = {
   overlayImages: ImageOverlay[];
   devices: DeviceInstance[];
   activeDeviceId: string;
+  /** True when this screenshot pins its own background instead of inheriting. */
+  backgroundOverride?: boolean;
 };
 
 export type SelectedElement = {
@@ -139,6 +147,8 @@ export type Project = {
   activeScreenshotId: string;
   /** Global text defaults; screenshots inherit these unless they override */
   textDefaults: TextSettings;
+  /** Project-level background default that inheriting screenshots follow. */
+  backgroundDefaults?: BackgroundSettings;
   /** User-saved color swatches, shared across the project */
   savedColors: string[];
 };

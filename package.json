@@ -6,7 +6,7 @@
     "dev": "bun --bun vite dev",
     "build": "bun --bun vite build && tsc",
     "preview": "bun --bun vite preview",
-    "test": "bun --bun vitest run"
+    "test": "vitest run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",

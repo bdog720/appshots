@@ -14,6 +14,7 @@ import { useEditor } from "../../context/EditorContext";
 import type { TextSettingKey } from "../../types";
 import { SidebarSection } from "./SidebarSection";
 import { SwatchColorInput } from "./SwatchColorInput";
+import { ContrastIndicator } from "./ContrastIndicator";
 import { STYLES, SLIDER_RANGES } from "./constants";
 
 type Scope = "global" | "screenshot";
@@ -93,7 +94,7 @@ export const TextSection = () => {
   return (
     <SidebarSection title="Text">
       {/* Scope toggle */}
-      <div className="flex gap-1 p-0.5 bg-[#2a2a2a] rounded-lg mb-3">
+      <div className="flex gap-1 p-0.5 bg-input rounded-lg mb-3">
         <button
           className={`${STYLES.modeButton} ${isGlobal ? STYLES.modeButtonActive : STYLES.modeButtonInactive}`}
           onClick={() => setScope("global")}
@@ -108,7 +109,7 @@ export const TextSection = () => {
         </button>
       </div>
 
-      <p className="text-[11px] text-gray-500 mb-3">
+      <p className="text-[11px] text-zinc-500 mb-3">
         {isGlobal
           ? "Applies to every screenshot that hasn't been customized."
           : "Overrides just this screenshot. Reset a value to follow the global default again."}
@@ -122,7 +123,7 @@ export const TextSection = () => {
             <span style={{ fontFamily: `'${source.fontFamily}', sans-serif` }}>
               {source.fontFamily}
             </span>
-            <ChevronDown size={16} className="text-gray-400" />
+            <ChevronDown size={16} className="text-zinc-400" />
           </button>
         </div>
 
@@ -142,6 +143,7 @@ export const TextSection = () => {
               value={source[key] as number}
               onChange={(e) => setValue(key, Number(e.target.value))}
               className={STYLES.rangeSlider}
+              aria-label={label}
             />
           </div>
         ))}
@@ -152,6 +154,12 @@ export const TextSection = () => {
           <SwatchColorInput
             value={source.textColor}
             onChange={(color) => setValue("textColor", color)}
+            label="Text color"
+          />
+          <ContrastIndicator
+            textColor={source.textColor}
+            screenshot={activeScreenshot}
+            onFix={(color) => setValue("textColor", color)}
           />
         </div>
       </div>

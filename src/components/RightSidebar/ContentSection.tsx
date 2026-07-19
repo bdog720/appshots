@@ -29,7 +29,7 @@ export const ContentSection = ({
   <SidebarSection title="Content">
     <div className="space-y-4">
       <div>
-        <label className="block text-xs text-gray-400 mb-1">Headline</label>
+        <label className="block text-xs text-zinc-400 mb-1">Headline</label>
         <RichTextEditor
           value={screenshot.headline}
           onChange={(html) => onUpdateScreenshot({ headline: html })}
@@ -38,7 +38,7 @@ export const ContentSection = ({
       </div>
 
       <div>
-        <label className="block text-xs text-gray-400 mb-1">Subheadline</label>
+        <label className="block text-xs text-zinc-400 mb-1">Subheadline</label>
         <RichTextEditor
           value={screenshot.subheadline}
           onChange={(html) => onUpdateScreenshot({ subheadline: html })}

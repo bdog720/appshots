@@ -38,22 +38,22 @@ export const CollapsibleGroup = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-md bg-[#181818]">
+    <div className="rounded-md bg-section">
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm text-gray-200 hover:text-white"
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm text-zinc-200 hover:text-white"
       >
         <ChevronRight
           size={14}
-          className={`shrink-0 text-gray-400 transition-transform ${
+          className={`shrink-0 text-zinc-400 transition-transform ${
             isOpen ? "rotate-90" : ""
           }`}
         />
         <span className="flex-1 font-medium">{label}</span>
         {count !== undefined && (
-          <span className="text-xs text-gray-500">{count}</span>
+          <span className="text-xs text-zinc-500">{count}</span>
         )}
       </button>
       {isOpen && <div className="px-2.5 pb-2.5 pt-0.5">{children}</div>}

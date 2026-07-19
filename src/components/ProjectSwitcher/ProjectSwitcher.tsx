@@ -83,10 +83,12 @@ const ProjectItem = ({
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
+          aria-label="Project name"
           className="flex-1 px-2 py-1 text-sm bg-zinc-800 border border-zinc-600 rounded text-white focus:outline-none focus:border-violet-500"
         />
         <button
           onClick={handleSave}
+          aria-label="Save project name"
           className="p-1 hover:bg-zinc-700 rounded text-green-400"
         >
           <Check className="w-4 h-4" />
@@ -96,6 +98,7 @@ const ProjectItem = ({
             setEditName(project.name);
             setIsEditing(false);
           }}
+          aria-label="Cancel rename"
           className="p-1 hover:bg-zinc-700 rounded text-red-400"
         >
           <X className="w-4 h-4" />
@@ -129,6 +132,7 @@ const ProjectItem = ({
           }}
           className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
           title="Export project (download backup)"
+          aria-label="Export project"
         >
           <Download className="w-3.5 h-3.5" />
         </button>
@@ -139,6 +143,7 @@ const ProjectItem = ({
           }}
           className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
           title="Rename project"
+          aria-label="Rename project"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
@@ -150,6 +155,7 @@ const ProjectItem = ({
             }}
             className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-red-400"
             title="Delete project"
+            aria-label="Delete project"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -246,6 +252,7 @@ export const ProjectSwitcher = () => {
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-white text-sm transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -304,6 +311,7 @@ export const ProjectSwitcher = () => {
                 <button
                   onClick={handleCreateProject}
                   disabled={!newProjectName.trim()}
+                  aria-label="Create project"
                   className="p-1.5 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-700 disabled:text-zinc-500 rounded text-white transition-colors"
                 >
                   <Check className="w-4 h-4" />
@@ -313,6 +321,7 @@ export const ProjectSwitcher = () => {
                     setIsCreating(false);
                     setNewProjectName("");
                   }}
+                  aria-label="Cancel new project"
                   className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400"
                 >
                   <X className="w-4 h-4" />

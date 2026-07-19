@@ -30,7 +30,7 @@ export const BackgroundPicker = ({
   onUpdateScreenshot,
 }: BackgroundPickerProps) => (
   <div>
-    <label className="block text-xs text-gray-400 mb-1">Background</label>
+    <label className="block text-xs text-zinc-400 mb-1">Background</label>
     <div className="space-y-2">
       {/* Mode toggle */}
       <div className="flex gap-2">
@@ -61,6 +61,7 @@ export const BackgroundPicker = ({
         <SwatchColorInput
           value={screenshot.backgroundColor}
           onChange={(color) => onUpdateScreenshot({ backgroundColor: color })}
+          label="Background color"
         />
       ) : (
         <div className="grid grid-cols-3 gap-1">
@@ -68,6 +69,8 @@ export const BackgroundPicker = ({
             <button
               key={preset.id}
               onClick={() => onUpdateScreenshot({ gradientPresetId: preset.id })}
+              aria-label={`${preset.label} gradient`}
+              title={preset.label}
               className={`${STYLES.gradientButton} ${
                 screenshot.gradientPresetId === preset.id
                   ? STYLES.gradientButtonActive
