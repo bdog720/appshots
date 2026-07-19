@@ -38,6 +38,9 @@ export const RightSidebar = () => {
     activeDevice,
     updateActiveScreenshot,
     setActiveScreenshotText,
+    setBackgroundDefault,
+    setActiveScreenshotBackground,
+    resetActiveScreenshotBackground,
     fileInputRef,
     handleFileUpload,
     overlayImageInputRef,
@@ -110,7 +113,9 @@ export const RightSidebar = () => {
         <AppearanceSection
           screenshot={activeScreenshot}
           gradientPresets={gradientPresets}
-          onUpdateScreenshot={updateActiveScreenshot}
+          onSetBackgroundDefault={setBackgroundDefault}
+          onSetScreenshotBackground={setActiveScreenshotBackground}
+          onResetScreenshotBackground={resetActiveScreenshotBackground}
           onFixTextColor={(color) => setActiveScreenshotText("textColor", color)}
         />
 

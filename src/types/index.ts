@@ -2,6 +2,7 @@ import type { TextSettings, TextSettingKey } from "../lib/text-settings";
 import type { BackgroundSettings } from "../lib/background-settings";
 
 export type { TextSettings, TextSettingKey };
+export type { BackgroundSettings };
 
 export type DeviceColor = {
   id: string;
