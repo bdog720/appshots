@@ -225,6 +225,7 @@ type LegacyProjectFields = {
 interface EditorSnapshot {
   screenshots: Screenshot[];
   textDefaults: TextSettings;
+  backgroundDefaults: BackgroundSettings;
   savedColors: string[];
 }
 
@@ -532,6 +533,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const applyHistorySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setScreenshotsState(snapshot.screenshots);
     setTextDefaultsState(snapshot.textDefaults);
+    setBackgroundDefaultsState(snapshot.backgroundDefaults);
     setSavedColorsState(snapshot.savedColors);
     setSelectedElement(null);
   }, []);
@@ -543,8 +545,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     canUndo,
     canRedo,
   } = useSnapshotHistory<EditorSnapshot>({
-    value: { screenshots, textDefaults, savedColors },
-    deps: [screenshots, textDefaults, savedColors],
+    value: { screenshots, textDefaults, backgroundDefaults, savedColors },
+    deps: [screenshots, textDefaults, backgroundDefaults, savedColors],
     apply: applyHistorySnapshot,
   });
 
@@ -725,6 +727,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     resetHistory({
       screenshots: project.screenshots,
       textDefaults: project.textDefaults,
+      backgroundDefaults:
+        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
       savedColors: project.savedColors,
     });
   };
@@ -748,6 +752,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     resetHistory({
       screenshots: project.screenshots,
       textDefaults: project.textDefaults,
+      backgroundDefaults:
+        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
       savedColors: project.savedColors,
     });
   };
@@ -1343,6 +1349,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     resetHistory({
       screenshots: defaultProject.screenshots,
       textDefaults: defaultProject.textDefaults,
+      backgroundDefaults:
+        defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
       savedColors: defaultProject.savedColors,
     });
   };
