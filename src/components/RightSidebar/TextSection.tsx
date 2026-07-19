@@ -14,6 +14,7 @@ import { useEditor } from "../../context/EditorContext";
 import type { TextSettingKey } from "../../types";
 import { SidebarSection } from "./SidebarSection";
 import { SwatchColorInput } from "./SwatchColorInput";
+import { ContrastIndicator } from "./ContrastIndicator";
 import { STYLES, SLIDER_RANGES } from "./constants";
 
 type Scope = "global" | "screenshot";
@@ -154,6 +155,11 @@ export const TextSection = () => {
             value={source.textColor}
             onChange={(color) => setValue("textColor", color)}
             label="Text color"
+          />
+          <ContrastIndicator
+            textColor={source.textColor}
+            screenshot={activeScreenshot}
+            onFix={(color) => setValue("textColor", color)}
           />
         </div>
       </div>

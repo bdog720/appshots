@@ -21,6 +21,7 @@ import { TextSection } from "./TextSection";
 import { ContentSection } from "./ContentSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { OverlayImagesSection } from "./OverlayImagesSection";
+import { DesignCheckSection } from "./DesignCheckSection";
 import { STYLES } from "./constants";
 
 /**
@@ -36,6 +37,7 @@ export const RightSidebar = () => {
     activeScreenshot,
     activeDevice,
     updateActiveScreenshot,
+    setActiveScreenshotText,
     fileInputRef,
     handleFileUpload,
     overlayImageInputRef,
@@ -59,6 +61,8 @@ export const RightSidebar = () => {
   return (
     <aside className={STYLES.sidebar}>
       <div className={STYLES.content}>
+        <DesignCheckSection />
+
         <DeviceInstancesSection
           screenshot={activeScreenshot}
           onAddDevice={addDevice}
@@ -107,6 +111,7 @@ export const RightSidebar = () => {
           screenshot={activeScreenshot}
           gradientPresets={gradientPresets}
           onUpdateScreenshot={updateActiveScreenshot}
+          onFixTextColor={(color) => setActiveScreenshotText("textColor", color)}
         />
 
         <OverlayImagesSection

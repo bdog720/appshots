@@ -7,6 +7,7 @@
 import type { Screenshot, GradientPreset } from "../../types";
 import { SidebarSection } from "./SidebarSection";
 import { BackgroundPicker } from "./BackgroundPicker";
+import { ContrastIndicator } from "./ContrastIndicator";
 
 interface AppearanceSectionProps {
   /** Active screenshot data */
@@ -15,6 +16,8 @@ interface AppearanceSectionProps {
   gradientPresets: GradientPreset[];
   /** Update screenshot handler */
   onUpdateScreenshot: (updates: Partial<Screenshot>) => void;
+  /** Apply a readable text color to this screenshot (records an override). */
+  onFixTextColor: (color: string) => void;
 }
 
 /**
@@ -29,6 +32,7 @@ export const AppearanceSection = ({
   screenshot,
   gradientPresets,
   onUpdateScreenshot,
+  onFixTextColor,
 }: AppearanceSectionProps) => (
   <SidebarSection title="Background">
     <div className="space-y-4">
@@ -36,6 +40,11 @@ export const AppearanceSection = ({
         screenshot={screenshot}
         gradientPresets={gradientPresets}
         onUpdateScreenshot={onUpdateScreenshot}
+      />
+      <ContrastIndicator
+        textColor={screenshot.textColor}
+        screenshot={screenshot}
+        onFix={onFixTextColor}
       />
     </div>
   </SidebarSection>
