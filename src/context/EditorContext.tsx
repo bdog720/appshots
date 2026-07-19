@@ -19,7 +19,15 @@ import type {
   SelectedElement,
 } from "../types";
 import { devices, exportSizes } from "../constants";
-import { resolveGradientStops } from "../lib/background-settings";
+import {
+  DEFAULT_BACKGROUND_SETTINGS,
+  applyBackgroundDefaultToScreenshots,
+  overrideScreenshotBackground,
+  resetScreenshotBackground as resetScreenshotBackgroundFields,
+  pickBackgroundSettings,
+  resolveGradientStops,
+  type BackgroundSettings,
+} from "../lib/background-settings";
 import { exportScreenshots } from "../lib/export-utils";
 import {
   cloneDeviceInstance,
@@ -116,6 +124,16 @@ interface EditorContextType {
   ) => void;
   /** Clear an override on the active screenshot, reverting to the global default */
   resetActiveScreenshotText: (key: TextSettingKey) => void;
+  /** Project-level background default */
+  backgroundDefaults: BackgroundSettings;
+  /** Update the background default and propagate to non-overriding screenshots */
+  setBackgroundDefault: (patch: Partial<BackgroundSettings>) => void;
+  /** Override the background on the active screenshot */
+  setActiveScreenshotBackground: (patch: Partial<BackgroundSettings>) => void;
+  /** Clear the active screenshot's background override */
+  resetActiveScreenshotBackground: () => void;
+  /** Set the default AND clear every screenshot's override so all inherit it */
+  applyBrandBackground: (settings: BackgroundSettings) => void;
   /** Project-level saved color swatches */
   savedColors: string[];
   addSavedColor: (color: string) => void;
@@ -228,6 +246,7 @@ const createDefaultScreenshot = (
     backgroundColor: "#8b5cf6",
     backgroundMode: "solid",
     gradientPresetId: null,
+    backgroundOverride: false,
     textColor: "#ffffff",
     headlineX: 50,
     headlineY: 10,
@@ -293,6 +312,9 @@ const normalizeScreenshot = (
     // resolved values against the defaults so current appearance is preserved.
     textOverrides:
       screenshot.textOverrides ?? deriveTextOverrides(resolvedText, textDefaults),
+    // Legacy screenshots (no flag persisted) must keep their own background
+    // rather than start inheriting a newly-introduced project default.
+    backgroundOverride: screenshot.backgroundOverride ?? true,
   };
 };
 
@@ -341,6 +363,7 @@ const normalizeProject = (project: Project & LegacyProjectFields): Project => {
     selectedDeviceId: fallbackDeviceId,
     selectedColorId: fallbackColorId,
     textDefaults,
+    backgroundDefaults: project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
     savedColors: project.savedColors ?? [],
     screenshots: normalizedScreenshots,
     activeScreenshotId:
@@ -365,6 +388,7 @@ const createDefaultProject = (name: string = "My Project"): Project => {
     exportSizeId: exportSizes[0].id,
     activeScreenshotId: defaultScreenshot.id,
     textDefaults: { ...DEFAULT_TEXT_SETTINGS },
+    backgroundDefaults: { ...DEFAULT_BACKGROUND_SETTINGS },
     savedColors: [],
   };
 };
@@ -425,6 +449,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [textDefaults, setTextDefaultsState] = useState<TextSettings>(
     activeProject.textDefaults,
   );
+  const [backgroundDefaults, setBackgroundDefaultsState] =
+    useState<BackgroundSettings>(
+      activeProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
   const [savedColors, setSavedColorsState] = useState<string[]>(
     activeProject.savedColors,
   );
@@ -469,6 +497,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               exportSizeId,
               activeScreenshotId,
               textDefaults,
+              backgroundDefaults,
               savedColors,
               updatedAt: Date.now(),
             }
@@ -483,6 +512,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     exportSizeId,
     activeScreenshotId,
     textDefaults,
+    backgroundDefaults,
     savedColors,
   ]);
 
@@ -599,6 +629,45 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Update the background default and push it into every inheriting screenshot.
+  const setBackgroundDefault = (patch: Partial<BackgroundSettings>) => {
+    const next = { ...backgroundDefaults, ...patch };
+    setBackgroundDefaultsState(next);
+    setScreenshotsState((prev) => applyBackgroundDefaultToScreenshots(prev, next));
+  };
+
+  // Override the background on the active screenshot only.
+  const setActiveScreenshotBackground = (patch: Partial<BackgroundSettings>) => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId ? overrideScreenshotBackground(s, patch) : s,
+      ),
+    );
+  };
+
+  // Clear the active screenshot's override, reverting to the default.
+  const resetActiveScreenshotBackground = () => {
+    setScreenshotsState((prev) =>
+      prev.map((s) =>
+        s.id === activeScreenshotId
+          ? resetScreenshotBackgroundFields(s, backgroundDefaults)
+          : s,
+      ),
+    );
+  };
+
+  // Set the default AND clear all overrides so every screenshot follows it.
+  const applyBrandBackground = (settings: BackgroundSettings) => {
+    setBackgroundDefaultsState(settings);
+    setScreenshotsState((prev) =>
+      prev.map((s) => ({
+        ...s,
+        ...pickBackgroundSettings(settings),
+        backgroundOverride: false,
+      })),
+    );
+  };
+
   const addSavedColor = (color: string) => {
     setSavedColorsState((prev) => addColorToPalette(prev, color));
   };
@@ -648,6 +717,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(project.screenshots);
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
+    setBackgroundDefaultsState(
+      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
     resetHistory({
@@ -668,6 +740,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(project.screenshots);
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
+    setBackgroundDefaultsState(
+      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
     resetHistory({
@@ -765,9 +840,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       id: generateId(),
       headline: "New Screenshot",
       subheadline: "Add your description here",
-      backgroundColor: activeScreenshot.backgroundColor,
-      backgroundMode: activeScreenshot.backgroundMode,
-      gradientPresetId: activeScreenshot.gradientPresetId,
+      // New screenshots inherit the project's background default (Model A).
+      ...pickBackgroundSettings(backgroundDefaults),
+      backgroundOverride: false,
       // New screenshots inherit the project's global text defaults (Model A).
       textColor: textDefaults.textColor,
       headlineX: 50,
@@ -1259,6 +1334,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(defaultProject.screenshots);
     setActiveScreenshotIdState(defaultProject.activeScreenshotId);
     setTextDefaultsState(defaultProject.textDefaults);
+    setBackgroundDefaultsState(
+      defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
     setSavedColorsState(defaultProject.savedColors);
     setSelectedElement(null);
     setIsStarModalOpen(false);
@@ -1308,6 +1386,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setTextDefault,
         setActiveScreenshotText,
         resetActiveScreenshotText,
+        backgroundDefaults,
+        setBackgroundDefault,
+        setActiveScreenshotBackground,
+        resetActiveScreenshotBackground,
+        applyBrandBackground,
         savedColors,
         addSavedColor,
         removeSavedColor,

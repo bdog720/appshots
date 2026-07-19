@@ -55,6 +55,7 @@ export function buildImportedScreenshots({
       subheadlineFontSize: textDefaults.subheadlineFontSize,
       textOverrides: [],
       overlayImages: [],
+      backgroundOverride: false,
       devices,
       activeDeviceId: devices[0].id,
     };
