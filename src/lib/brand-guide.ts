@@ -70,7 +70,7 @@ export const VIBES: VibeRecipe[] = [
   {
     id: "editorial", label: "Editorial", character: "classic", energy: "bold",
     fontFamily: "Lora", headlineFontSize: 70, subheadlineFontSize: 40,
-    background: (brand) => gradient(adjustLightness(brand, -30), brand),
+    background: (brand) => gradient(adjustLightness(brand, -45), adjustLightness(brand, -32)),
   },
 ];
 
