@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { Palette } from "lucide-react";
+import { ColorField } from "../ColorField/ColorField";
 import { ICON_SIZE, STYLES } from "./constants";
 import { Tooltip } from "./Tooltip";
 
@@ -44,24 +45,31 @@ export const ColorPicker = ({
   tooltip = "Text Color",
   icon,
 }: ColorPickerProps) => (
-  <Tooltip content={tooltip}>
-    <div
-      className={`relative ${STYLES.toolbarButton} ${STYLES.toolbarButtonInactive}`}
-    >
-      <input
-        type="color"
-        value={value}
-        onMouseDown={onMouseDown}
-        onChange={onChange}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        aria-label={tooltip}
-      />
-      {icon ?? <Palette size={ICON_SIZE} />}
-      {/* Color indicator bar */}
-      <div
-        className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full"
-        style={{ backgroundColor: value }}
-      />
-    </div>
-  </Tooltip>
+  <ColorField
+    value={value}
+    onChange={(color) =>
+      onChange({
+        target: { value: color },
+      } as React.ChangeEvent<HTMLInputElement>)
+    }
+    label={tooltip}
+    renderTrigger={({ open }) => (
+      <Tooltip content={tooltip}>
+        <button
+          type="button"
+          onMouseDown={onMouseDown}
+          onClick={open}
+          aria-label={tooltip}
+          className={`relative ${STYLES.toolbarButton} ${STYLES.toolbarButtonInactive}`}
+        >
+          {icon ?? <Palette size={ICON_SIZE} />}
+          {/* Color indicator bar */}
+          <div
+            className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full"
+            style={{ backgroundColor: value }}
+          />
+        </button>
+      </Tooltip>
+    )}
+  />
 );

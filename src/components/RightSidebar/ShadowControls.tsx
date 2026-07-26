@@ -6,7 +6,7 @@
 
 import { Toggle } from "./Toggle";
 import { RangeSlider } from "./RangeSlider";
-import { SwatchColorInput } from "./SwatchColorInput";
+import { ColorField } from "../ColorField/ColorField";
 import { STYLES, SLIDER_RANGES } from "./constants";
 import type { ShadowControlsProps } from "./types";
 
@@ -40,7 +40,7 @@ export const ShadowControls = ({
       <>
         <div>
           <span className={`${STYLES.labelSmall} mb-1 block`}>Color</span>
-          <SwatchColorInput
+          <ColorField
             value={shadow.color}
             onChange={onColorChange}
             label="Shadow color"
