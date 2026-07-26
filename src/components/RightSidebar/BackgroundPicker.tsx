@@ -5,7 +5,7 @@
  */
 
 import type { Screenshot, GradientPreset } from "../../types";
-import { SwatchColorInput } from "./SwatchColorInput";
+import { ColorField } from "../ColorField/ColorField";
 import { STYLES } from "./constants";
 
 interface BackgroundPickerProps {
@@ -58,7 +58,7 @@ export const BackgroundPicker = ({
 
       {/* Color picker or gradient presets */}
       {screenshot.backgroundMode === "solid" ? (
-        <SwatchColorInput
+        <ColorField
           value={screenshot.backgroundColor}
           onChange={(color) => onUpdateScreenshot({ backgroundColor: color })}
           label="Background color"

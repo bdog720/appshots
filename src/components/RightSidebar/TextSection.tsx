@@ -13,7 +13,7 @@ import { ChevronDown, RotateCcw } from "lucide-react";
 import { useEditor } from "../../context/EditorContext";
 import type { TextSettingKey } from "../../types";
 import { SidebarSection } from "./SidebarSection";
-import { SwatchColorInput } from "./SwatchColorInput";
+import { ColorField } from "../ColorField/ColorField";
 import { ContrastIndicator } from "./ContrastIndicator";
 import { STYLES, SLIDER_RANGES } from "./constants";
 
@@ -151,7 +151,7 @@ export const TextSection = () => {
         {/* Text color */}
         <div>
           <LabelRow label="Text Color" settingKey="textColor" />
-          <SwatchColorInput
+          <ColorField
             value={source.textColor}
             onChange={(color) => setValue("textColor", color)}
             label="Text color"
