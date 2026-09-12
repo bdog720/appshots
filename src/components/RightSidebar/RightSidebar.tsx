@@ -20,6 +20,7 @@ import { LayoutSection } from "./LayoutSection";
 import { ContentSection } from "./ContentSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { OverlayImagesSection } from "./OverlayImagesSection";
+import { IconLibrarySection } from "./IconLibrarySection";
 import { STYLES } from "./constants";
 
 /**
@@ -42,6 +43,7 @@ export const RightSidebar = () => {
     setIsFontPickerOpen,
     fileInputRef,
     handleFileUpload,
+    addIcon,
     overlayImageInputRef,
     addOverlayImage,
     selectedElement,
@@ -117,6 +119,8 @@ export const RightSidebar = () => {
           onUpdateScreenshot={updateActiveScreenshot}
           onOpenFontPicker={() => setIsFontPickerOpen(true)}
         />
+
+        <IconLibrarySection onAddIcon={addIcon} />
 
         <OverlayImagesSection
           screenshot={activeScreenshot}
