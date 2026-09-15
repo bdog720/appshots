@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { normalizeProject } from "../../context/EditorContext";
 import { contrastRatio } from "../design-guidance";
 import { LAYOUT_PRESETS } from "../layout-presets";
@@ -11,6 +11,13 @@ import {
 } from "./compile";
 import { ImportError } from "./issues";
 import type { ImportManifest } from "./schema";
+
+// EditorContext reads persisted state at module load; keep that read inert so
+// importing normalizeProject doesn't touch localStorage.
+vi.mock("../useLocalStorage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../useLocalStorage")>()),
+  loadPersistedState: () => null,
+}));
 
 const loaded = (name: string, width = 1206, height = 2622): [string, LoadedImage] => [
   imageKey(name),
