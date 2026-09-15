@@ -65,6 +65,56 @@ describe("sanitizeRichText", () => {
     expect(stripped).toBe(true);
   });
 
+  it("keeps markup whose tag has a newline between attributes", () => {
+    const { html } = sanitizeRichText('<span\nstyle="color: red">x</span>');
+    const body = new DOMParser().parseFromString(html, "text/html").body;
+    expect(body.textContent).toBe("x");
+    expect(firstElement(html, "span")?.style.color).toBe("red");
+  });
+
+  it("keeps a color whose style value contains a newline", () => {
+    const { html, stripped } = sanitizeRichText('<span style="color:\n red">x</span>');
+    expect(stripped).toBe(false);
+    expect(firstElement(html, "span")?.style.color).toBe("red");
+  });
+
+  it("turns carriage returns and CRLF into single line breaks", () => {
+    expect(sanitizeRichText("a\rb").html).toBe("a<br>b");
+    expect(sanitizeRichText("a\r\nb").html).toBe("a<br>b");
+  });
+
+  it("turns newlines inside allowed tags into line breaks", () => {
+    expect(sanitizeRichText("<b>a\nb</b>").html).toBe("<b>a<br>b</b>");
+  });
+
+  it("drops var() colors the canvas export cannot resolve", () => {
+    const { html, stripped } = sanitizeRichText('<span style="color: var(--brand)">x</span>');
+    expect(html).toBe("<span>x</span>");
+    expect(stripped).toBe(true);
+  });
+
+  it("drops currentcolor highlights", () => {
+    const { html, stripped } = sanitizeRichText(
+      '<mark style="background-color: currentColor">x</mark>',
+    );
+    expect(html).toBe("<mark>x</mark>");
+    expect(stripped).toBe(true);
+  });
+
+  it("flags style declarations the CSS parser rejects", () => {
+    expect(sanitizeRichText('<b style="bogus">b</b>')).toEqual({
+      html: "<b>b</b>",
+      stripped: true,
+    });
+  });
+
+  it("flags an invalid color value", () => {
+    expect(sanitizeRichText('<span style="color: expression(alert(1))">x</span>')).toEqual({
+      html: "<span>x</span>",
+      stripped: true,
+    });
+  });
+
   it("only keeps background-color on mark", () => {
     const { html, stripped } = sanitizeRichText(
       '<mark style="color: red; background-color: #00ff00">x</mark>',
