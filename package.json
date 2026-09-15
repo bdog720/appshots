@@ -6,7 +6,8 @@
     "dev": "bun --bun vite dev",
     "build": "bun --bun vite build && tsc",
     "preview": "bun --bun vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:agent-docs": "bun scripts/gen-agent-docs.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",
