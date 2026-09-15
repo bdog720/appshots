@@ -20,7 +20,7 @@ import {
 } from "../../lib/brand-guide";
 import { resolveGradientStops } from "../../lib/background-settings";
 import { assessScreenshotContrast } from "../../lib/design-guidance";
-import { SwatchColorInput } from "./SwatchColorInput";
+import { ColorField } from "../ColorField/ColorField";
 import { STYLES } from "./constants";
 import type { Screenshot } from "../../types";
 
@@ -140,7 +140,7 @@ export const BrandGuideSection = () => {
           {/* Brand color (shared) */}
           <div>
             <label className={STYLES.label}>Brand color</label>
-            <SwatchColorInput
+            <ColorField
               value={brandColor}
               onChange={setBrandColor}
               label="Brand color"

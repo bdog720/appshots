@@ -4,9 +4,10 @@ import { gradientPresets } from "../../constants";
 import type { Screenshot, BackgroundSettings } from "../../types";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../../lib/background-settings";
 
-// AppearanceSection renders BackgroundPicker -> SwatchColorInput, which reads
-// the saved-colors palette off EditorContext directly. Mock it the same way
-// DesignCheckSection.test.tsx does, since there's no EditorProvider in this test.
+// AppearanceSection renders BackgroundPicker -> ColorField -> ColorPopover,
+// which reads the saved-colors palette off EditorContext directly. Mock it
+// the same way DesignCheckSection.test.tsx does, since there's no
+// EditorProvider in this test.
 const useEditorMock = vi.fn();
 vi.mock("../../context/EditorContext", () => ({
   useEditor: () => useEditorMock(),
