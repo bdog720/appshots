@@ -36,6 +36,10 @@ describe("image helpers", () => {
     expect(Array.from(dataUrlToBytes(bytesToDataUrl(large, "image/webp")).bytes)).toEqual(Array.from(large));
   });
 
+  it("rejects a data URL without a payload", () => {
+    expect(() => dataUrlToBytes("data:image/png")).toThrow();
+  });
+
   it("maps every device and overlay image without touching the original", async () => {
     const mapped = await mapProjectImages(project, async (src) => `mapped:${src}`);
     expect(mapped.screenshots[0].devices[0].screenshotSrc).toBe("mapped:data:image/png;base64,AQID");

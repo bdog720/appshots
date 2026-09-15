@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Project } from "../../types";
 import { createFakeServer } from "./fake-server";
-import { ServerStorage, UNLOAD_BODY_LIMIT } from "./server-storage";
+import { ServerStorage, UNLOAD_BODY_LIMIT, UPLOAD_CACHE_TTL_MS, type FetchLike } from "./server-storage";
 import { StorageError } from "./types";
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
@@ -143,7 +143,17 @@ describe("ServerStorage other operations", () => {
     const added = server.history.get("p")?.[0] as { label: string; project: Project };
     expect(added.label).toBe("Discarded local changes");
     expect(added.project.screenshots[0].devices[0].screenshotSrc).toMatch(/^\/api\/images\//);
-    expect(await storage.listHistory("p")).toHaveLength(1);
+    const listed = await storage.listHistory("p");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toEqual({
+      version: expect.stringMatching(/^\d{13}-\d+$/),
+      revision: 2,
+      savedAt: expect.any(Number),
+      pinned: true,
+      label: "Discarded local changes",
+      screenCount: 1,
+      firstHeadline: "",
+    });
 
     const restored = await storage.restoreVersion("p", "1757900000000-1");
     expect(restored).toMatchObject({ id: "p", restoredFrom: "1757900000000-1" });
@@ -160,7 +170,7 @@ describe("ServerStorage other operations", () => {
   });
 
   it("saves on unload with keepalive only when it can", async () => {
-    const { server, storage } = setup();
+    const { server } = setup();
     const fetchSpy = vi.fn(server.fetch);
     const spied = new ServerStorage(fetchSpy);
     await spied.saveProject(project("p"));
@@ -171,7 +181,6 @@ describe("ServerStorage other operations", () => {
     expect(spied.saveProjectOnUnload(project("p", "data:image/png;base64,AAAA"))).toBe(false);
     const huge = project("p", null, { notes: "x".repeat(UNLOAD_BODY_LIMIT) });
     expect(spied.saveProjectOnUnload(huge)).toBe(false);
-    expect(storage.mode).toBe("server");
   });
 
   it("measures the unload limit in bytes, not characters", async () => {
@@ -189,5 +198,133 @@ describe("ServerStorage other operations", () => {
     const body = server.calls.at(-1)?.body as { project: Project };
     expect(body.project.screenshots[0].devices[0].screenshotSrc).toMatch(/^\/api\/images\//);
     expect(server.calls.at(-1)?.headers["if-match"]).toBe('"1"');
+  });
+
+  it("picks up the revision from an unload save before the next save", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p"));
+    expect(storage.saveProjectOnUnload(project("p"))).toBe(true);
+
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"2"');
+    expect(server.projects.get("p")?.revision).toBe(3);
+  });
+
+  it("loads projects in parallel and keeps their order", async () => {
+    const server = createFakeServer();
+    server.projects.set("a", { revision: 1, project: project("a") });
+    server.projects.set("b", { revision: 1, project: project("b") });
+    server.state.projectOrder = ["b", "a"];
+    const gates: Array<() => void> = [];
+    const gated: FetchLike = async (url, init) => {
+      if (url.startsWith("/api/projects/")) await new Promise<void>((open) => gates.push(open));
+      return server.fetch(url, init);
+    };
+
+    const loading = new ServerStorage(gated).load();
+    await vi.waitFor(() => expect(gates).toHaveLength(2));
+    [...gates].reverse().forEach((open) => open());
+    expect((await loading).projects.map((p) => p.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("ServerStorage upload cache", () => {
+  it("re-uploads an image once its cache entry is older than the TTL", async () => {
+    const server = createFakeServer();
+    let clock = 1_000_000;
+    const storage = new ServerStorage(server.fetch, { now: () => clock });
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    clock += UPLOAD_CACHE_TTL_MS - 1;
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    expect(server.calls.filter((call) => call.url === "/api/images")).toHaveLength(1);
+
+    clock += 2;
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    expect(server.calls.filter((call) => call.url === "/api/images")).toHaveLength(2);
+  });
+
+  it("treats a stale upload as missing on unload", async () => {
+    const server = createFakeServer();
+    let clock = 1_000_000;
+    const storage = new ServerStorage(server.fetch, { now: () => clock });
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    clock += UPLOAD_CACHE_TTL_MS + 1;
+    expect(storage.saveProjectOnUnload(project("p", PNG_DATA_URL))).toBe(false);
+  });
+
+  it("forgets uploads on reset", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    await storage.resetAll();
+    await storage.saveProject(project("p", PNG_DATA_URL));
+    expect(server.calls.filter((call) => call.url === "/api/images")).toHaveLength(2);
+  });
+
+  it("wraps an unreadable data URL in a StorageError", async () => {
+    const { storage } = setup();
+    await expect(storage.saveProject(project("p", "data:image/png;base64,@@@@"))).rejects.toThrow(
+      new StorageError("An image couldn't be read"),
+    );
+    await expect(storage.saveProject(project("q", "data:image/png"))).rejects.toThrow(
+      new StorageError("An image couldn't be read"),
+    );
+  });
+});
+
+describe("ServerStorage image conversion", () => {
+  const GIF_DATA_URL = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+
+  it("converts unsupported image types to PNG once before uploading", async () => {
+    const server = createFakeServer();
+    const convertImage = vi.fn(async () => PNG_DATA_URL);
+    const storage = new ServerStorage(server.fetch, { convertImage });
+    const gif = project("p", GIF_DATA_URL);
+
+    await storage.saveProject(gif);
+    await storage.saveProject(gif);
+
+    expect(convertImage).toHaveBeenCalledTimes(1);
+    expect(convertImage).toHaveBeenCalledWith(GIF_DATA_URL);
+    const uploads = server.calls.filter((call) => call.url === "/api/images");
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].headers["content-type"]).toBe("image/png");
+    expect(Array.from(server.images.values().next().value!.bytes)).toEqual(
+      Array.from(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+    );
+    expect(gif.screenshots[0].devices[0].screenshotSrc).toBe(GIF_DATA_URL);
+  });
+
+  it("uploads PNG, JPEG and WebP as they are", async () => {
+    const server = createFakeServer();
+    const convertImage = vi.fn(async () => PNG_DATA_URL);
+    const storage = new ServerStorage(server.fetch, { convertImage });
+    const mixed = {
+      ...project("p"),
+      screenshots: [
+        {
+          devices: [{ screenshotSrc: PNG_DATA_URL }, { screenshotSrc: "data:image/jpeg;base64,/9j/4A==" }],
+          overlayImages: [{ src: "data:image/webp;base64,UklGRg==" }],
+        },
+      ],
+    } as unknown as Project;
+
+    await storage.saveProject(mixed);
+    expect(convertImage).not.toHaveBeenCalled();
+    expect(server.calls.filter((call) => call.url === "/api/images").map((call) => call.headers["content-type"])).toEqual(
+      expect.arrayContaining(["image/png", "image/jpeg", "image/webp"]),
+    );
+  });
+
+  it("reports an image that can't be converted", async () => {
+    const server = createFakeServer();
+    const storage = new ServerStorage(server.fetch, {
+      convertImage: async () => {
+        throw new Error("decode failed");
+      },
+    });
+    await expect(storage.saveProject(project("p", GIF_DATA_URL))).rejects.toThrow(
+      new StorageError("An image couldn't be converted for saving"),
+    );
+    expect(server.calls.filter((call) => call.url === "/api/images")).toHaveLength(0);
   });
 });

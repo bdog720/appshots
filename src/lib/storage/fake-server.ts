@@ -17,6 +17,30 @@ export const createFakeServer = () => {
   let failStatus: number | null = null;
   let imageCounter = 0;
 
+  /** Revision each POSTed history body was recorded against (real server: the current one). */
+  const historyMeta = new WeakMap<object, { revision: number }>();
+
+  /** Same shape as the real server's HistorySummary (server/store.ts listHistory). */
+  const summarize = (entry: unknown, index: number, fallbackRevision: number) => {
+    const record = (typeof entry === "object" && entry !== null ? entry : {}) as {
+      label?: unknown;
+      project?: { screenshots?: Array<{ headline?: unknown }> };
+    };
+    const screenshots = Array.isArray(record.project?.screenshots) ? record.project.screenshots : [];
+    const headline = typeof screenshots[0]?.headline === "string" ? screenshots[0].headline : "";
+    const revision = (typeof entry === "object" && entry !== null && historyMeta.get(entry)?.revision) || fallbackRevision;
+    const savedAt = 1_757_900_000_000 + index;
+    return {
+      version: `${savedAt}-${revision}`,
+      revision,
+      savedAt,
+      pinned: true,
+      ...(typeof record.label === "string" ? { label: record.label } : {}),
+      screenCount: screenshots.length,
+      firstHeadline: headline.replace(/<[^>]*>/g, "").slice(0, 80),
+    };
+  };
+
   const json = (status: number, body: unknown) =>
     new Response(body === undefined ? null : JSON.stringify(body), {
       status,
@@ -85,10 +109,13 @@ export const createFakeServer = () => {
         return projects.delete(id) ? new Response(null, { status: 204 }) : json(404, { error: "project not found" });
       }
       if (parts[2] === "history" && parts.length === 3 && method === "GET") {
-        return stored ? json(200, history.get(id) ?? []) : json(404, { error: "project not found" });
+        if (!stored) return json(404, { error: "project not found" });
+        const summaries = (history.get(id) ?? []).map((entry, index) => summarize(entry, index, stored.revision));
+        return json(200, summaries.reverse());
       }
       if (parts[2] === "history" && parts.length === 3 && method === "POST") {
         if (!stored) return json(404, { error: "project not found" });
+        if (typeof body === "object" && body !== null) historyMeta.set(body, { revision: stored.revision });
         history.set(id, [...(history.get(id) ?? []), body]);
         return json(201, { ok: true });
       }

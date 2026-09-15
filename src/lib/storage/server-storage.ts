@@ -1,12 +1,14 @@
 /**
  * ServerStorage — saves projects through the container's storage API.
  * Remembers each project's revision for conflict detection and uploads inline
- * (data URL) images once, saving /api/images URLs in their place.
+ * (data URL) images, saving /api/images URLs in their place.
  */
 
 import type { Project } from "../../types";
 import {
   bytesToDataUrl,
+  convertDataUrlToPng,
+  dataUrlContentType,
   dataUrlToBytes,
   isDataUrl,
   isServerImageUrl,
@@ -26,17 +28,45 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 export const UNLOAD_BODY_LIMIT = 60 * 1024;
 
+/**
+ * How long an uploaded image's URL is reused. The server deletes unreferenced
+ * images an hour after their last upload, so re-upload (refreshing it) well before.
+ */
+export const UPLOAD_CACHE_TTL_MS = 30 * 60 * 1000;
+
+export interface ServerStorageOptions {
+  now?: () => number;
+  /** Re-encodes an image the server doesn't accept as a PNG data URL. */
+  convertImage?: (dataUrl: string) => Promise<string>;
+}
+
+/** Types the server accepts (it checks magic bytes); anything else is converted first. */
+const UPLOADABLE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+interface CachedUpload {
+  /** Shared by concurrent saves of the same image. */
+  promise: Promise<string>;
+  /** Set once the upload has finished. */
+  url?: string;
+  uploadedAt?: number;
+}
+
 const projectUrl = (id: string) => `/api/projects/${encodeURIComponent(id)}`;
 
 export class ServerStorage implements ServerProjectStorage {
   readonly mode = "server" as const;
   private readonly revisions = new Map<string, number>();
-  private readonly uploads = new Map<string, Promise<string>>();
-  private readonly uploaded = new Map<string, string>();
+  /** Keyed by the original data URL, so a converted image is converted once. */
+  private readonly uploads = new Map<string, CachedUpload>();
+  private readonly pendingUnloadSaves = new Map<string, Promise<void>>();
   private readonly fetchImpl: FetchLike;
+  private readonly now: () => number;
+  private readonly convertImage: (dataUrl: string) => Promise<string>;
 
-  constructor(fetchImpl?: FetchLike) {
+  constructor(fetchImpl?: FetchLike, options: ServerStorageOptions = {}) {
     this.fetchImpl = fetchImpl ?? ((input, init) => fetch(input, init));
+    this.now = options.now ?? (() => Date.now());
+    this.convertImage = options.convertImage ?? convertDataUrlToPng;
   }
 
   private async request(url: string, init: RequestInit = {}): Promise<Response> {
@@ -63,24 +93,60 @@ export class ServerStorage implements ServerProjectStorage {
     return revision === 0 ? { "If-None-Match": "*" } : { "If-Match": `"${revision}"` };
   }
 
+  /** The cached upload for a data URL, unless it's old enough that the server may have deleted it. */
+  private cachedUpload(src: string): CachedUpload | undefined {
+    const entry = this.uploads.get(src);
+    if (entry?.uploadedAt !== undefined && this.now() - entry.uploadedAt > UPLOAD_CACHE_TTL_MS) {
+      this.uploads.delete(src);
+      return undefined;
+    }
+    return entry;
+  }
+
   private externalize(src: string): Promise<string> {
     if (!isDataUrl(src)) return Promise.resolve(src);
-    const existing = this.uploads.get(src);
-    if (existing) return existing;
-    const upload = (async () => {
-      const { bytes, contentType } = dataUrlToBytes(src);
-      const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-      const response = await this.ensureOk(
-        await this.request("/api/images", { method: "POST", headers: { "Content-Type": contentType }, body }),
-        "Uploading an image",
-      );
-      const { url } = (await response.json()) as { url: string };
-      this.uploaded.set(src, url);
-      return url;
-    })();
-    this.uploads.set(src, upload);
-    upload.catch(() => this.uploads.delete(src));
-    return upload;
+    const cached = this.cachedUpload(src);
+    if (cached) return cached.promise;
+    const entry: CachedUpload = { promise: this.upload(src) };
+    entry.promise.then(
+      (url) => {
+        entry.url = url;
+        entry.uploadedAt = this.now();
+      },
+      () => {
+        if (this.uploads.get(src) === entry) this.uploads.delete(src);
+      },
+    );
+    this.uploads.set(src, entry);
+    return entry.promise;
+  }
+
+  private async upload(src: string): Promise<string> {
+    let dataUrl = src;
+    if (!UPLOADABLE_TYPES.has(dataUrlContentType(src))) {
+      try {
+        dataUrl = await this.convertImage(src);
+      } catch {
+        throw new StorageError("An image couldn't be converted for saving");
+      }
+    }
+    let image: { bytes: Uint8Array; contentType: string };
+    try {
+      image = dataUrlToBytes(dataUrl);
+    } catch {
+      throw new StorageError("An image couldn't be read");
+    }
+    const response = await this.ensureOk(
+      await this.request("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": image.contentType },
+        // dataUrlToBytes allocates an exact-size buffer, so it's sent without copying.
+        body: image.bytes.buffer as ArrayBuffer,
+      }),
+      "Uploading an image",
+    );
+    const { url } = (await response.json()) as { url: string };
+    return url;
   }
 
   async load(): Promise<LoadedState> {
@@ -89,16 +155,17 @@ export class ServerStorage implements ServerProjectStorage {
       activeProjectId: string | null;
       projects: Array<{ id: string }>;
     };
-    const projects: Project[] = [];
-    for (const { id } of state.projects) {
-      const project = await this.reloadProject(id);
-      if (project) projects.push(project);
-    }
-    return { projects, activeProjectId: state.activeProjectId };
+    const loaded = await Promise.all(state.projects.map(({ id }) => this.reloadProject(id)));
+    return {
+      projects: loaded.filter((project): project is Project => project !== null),
+      activeProjectId: state.activeProjectId,
+    };
   }
 
   async saveProject(project: Project, options: SaveOptions = {}): Promise<SaveResult> {
     const prepared = await mapProjectImages(project, (src) => this.externalize(src));
+    // An unload save that's still in flight may move the revision on; never rejects.
+    await this.pendingUnloadSaves.get(project.id);
     const revision = options.baseRevision ?? this.revisions.get(project.id) ?? 0;
     const response = await this.request(projectUrl(project.id), {
       method: "PUT",
@@ -121,20 +188,31 @@ export class ServerStorage implements ServerProjectStorage {
 
   saveProjectOnUnload(project: Project): boolean {
     const prepared = mapProjectImagesSync(project, (src) =>
-      isDataUrl(src) ? (this.uploaded.get(src) ?? null) : src,
+      isDataUrl(src) ? (this.cachedUpload(src)?.url ?? null) : src,
     );
     if (!prepared) return false;
     const body = JSON.stringify({ project: prepared });
     // Browsers cap keepalive bodies in bytes, so measure UTF-8 bytes, not characters.
     if (new TextEncoder().encode(body).byteLength >= UNLOAD_BODY_LIMIT) return false;
     const revision = this.revisions.get(project.id) ?? 0;
-    void this.fetchImpl(projectUrl(project.id), {
+    const settled = this.fetchImpl(projectUrl(project.id), {
       method: "PUT",
       keepalive: true,
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", ...this.preconditionHeaders(revision) },
       body,
-    }).catch(() => undefined);
+    })
+      .then(async (response) => {
+        // If the page survives (unload cancelled), later saves need the new revision.
+        if (!response.ok) return;
+        const saved = (await response.json()) as { revision?: unknown };
+        if (typeof saved.revision === "number") this.revisions.set(project.id, saved.revision);
+      })
+      .catch(() => undefined);
+    this.pendingUnloadSaves.set(project.id, settled);
+    void settled.then(() => {
+      if (this.pendingUnloadSaves.get(project.id) === settled) this.pendingUnloadSaves.delete(project.id);
+    });
     return true;
   }
 
@@ -160,6 +238,7 @@ export class ServerStorage implements ServerProjectStorage {
   }
 
   async resetAll(): Promise<void> {
+    this.uploads.clear();
     const response = await this.ensureOk(await this.request("/api/state"), "Loading projects");
     const state = (await response.json()) as { projects: Array<{ id: string }> };
     for (const { id } of state.projects) await this.deleteProject(id);
