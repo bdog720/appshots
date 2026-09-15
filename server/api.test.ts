@@ -57,6 +57,29 @@ describe("health and auth", () => {
     const right = { Authorization: `Basic ${btoa("anyone:s3cret")}` };
     expect((await call("GET", "/api/state", { headers: right })).status).toBe(200);
   });
+
+  it("accepts non-ASCII passwords encoded as UTF-8 the way browsers send them", async () => {
+    config.password = "pässwörd";
+    const header = `Basic ${Buffer.from("user:pässwörd", "utf8").toString("base64")}`;
+    expect((await call("GET", "/api/state", { headers: { Authorization: header } })).status).toBe(200);
+
+    const wrong = `Basic ${Buffer.from("user:passwort", "utf8").toString("base64")}`;
+    expect((await call("GET", "/api/state", { headers: { Authorization: wrong } })).status).toBe(401);
+  });
+
+  it("rejects malformed Basic credentials", async () => {
+    config.password = "s3cret";
+    const attempt = (authorization: string) => call("GET", "/api/state", { headers: { Authorization: authorization } });
+    expect((await attempt("Basic !!not*base64!!")).status).toBe(401);
+    expect((await attempt(`Basic ${Buffer.from("s3cret", "utf8").toString("base64")}`)).status).toBe(401);
+    expect((await attempt(`Bearer ${btoa("anyone:s3cret")}`)).status).toBe(401);
+  });
+
+  it("marks API JSON responses as not cacheable", async () => {
+    expect((await call("GET", "/api/health")).headers.get("Cache-Control")).toBe("no-store");
+    expect((await call("GET", "/api/state")).headers.get("Cache-Control")).toBe("no-store");
+    expect((await call("GET", "/api/projects/missing")).headers.get("Cache-Control")).toBe("no-store");
+  });
 });
 
 describe("projects", () => {
@@ -93,6 +116,18 @@ describe("projects", () => {
     expect((await putJson("/api/projects/p1", { project: project("long") }, { "If-None-Match": "*" })).status).toBe(413);
   });
 
+  it("rejects a declared Content-Length over the limit before reading the body", async () => {
+    config.limits = { imageBytes: 1000, jsonBytes: 1000 };
+    // The actual bodies fit the limits, so only the declared length can trigger 413.
+    const image = await call("POST", "/api/images", { body: PNG, headers: { "Content-Length": "999999" } });
+    expect(image.status).toBe(413);
+    const state = await call("PUT", "/api/state", {
+      body: JSON.stringify({ activeProjectId: null, projectOrder: [] }),
+      headers: { "Content-Length": "999999" },
+    });
+    expect(state.status).toBe(413);
+  });
+
   it("returns 405 for unsupported methods on known routes", async () => {
     expect((await call("POST", "/api/projects/p1")).status).toBe(405);
   });
@@ -119,6 +154,7 @@ describe("images", () => {
     expect(served.status).toBe(200);
     expect(served.headers.get("Content-Type")).toBe("image/png");
     expect(served.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    expect(served.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(Array.from(new Uint8Array(await served.arrayBuffer()))).toEqual(Array.from(PNG));
   });
 
@@ -177,5 +213,14 @@ describe("static files", () => {
     // "%2F" keeps the slash encoded through URL parsing, so the decoded path escapes dist/.
     expect((await call("GET", "/..%2Fsecret.txt")).status).toBe(404);
     expect((await call("GET", "/api/unknown")).status).toBe(404);
+  });
+
+  it("serves extra static types with nosniff", async () => {
+    await writeFile(path.join(root, "dist", "sitemap.xml"), "<urlset/>");
+    const sitemap = await call("GET", "/sitemap.xml");
+    expect(sitemap.status).toBe(200);
+    expect(sitemap.headers.get("Content-Type")).toBe("application/xml");
+    expect(sitemap.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect((await call("GET", "/")).headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
 });

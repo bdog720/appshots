@@ -3,6 +3,7 @@
  * runs under Bun in production and under Vitest in tests.
  */
 
+import { Buffer } from "node:buffer";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
@@ -24,11 +25,14 @@ export interface ServerConfig {
 }
 
 const MAX_LABEL_LENGTH = 100;
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+const IMMUTABLE = "public, max-age=31536000, immutable";
 
+/** JSON is never cached: stale state or revisions would defeat conflict detection. */
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Response =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers },
   });
 
 const fail = (status: number, message: string): Response => json(status, { error: message });
@@ -40,12 +44,10 @@ export const isAuthorized = (request: Request, password: string | null): boolean
   if (!password) return true;
   const header = request.headers.get("authorization") ?? "";
   if (!header.startsWith("Basic ")) return false;
-  let decoded: string;
-  try {
-    decoded = atob(header.slice("Basic ".length));
-  } catch {
-    return false;
-  }
+  const payload = header.slice("Basic ".length).trim();
+  if (!BASE64.test(payload)) return false;
+  // Browsers send "user:password" UTF-8 encoded; atob would yield Latin-1 and never match non-ASCII passwords.
+  const decoded = Buffer.from(payload, "base64").toString("utf8");
   const separator = decoded.indexOf(":");
   if (separator < 0) return false;
   const supplied = createHash("sha256").update(decoded.slice(separator + 1)).digest();
@@ -126,7 +128,11 @@ const handleApi = async (request: Request, pathname: string, config: ServerConfi
       if (!image) return fail(404, "image not found");
       return new Response(image.bytes, {
         status: 200,
-        headers: { "Content-Type": image.contentType, "Cache-Control": "public, max-age=31536000, immutable" },
+        headers: {
+          "Content-Type": image.contentType,
+          "Cache-Control": IMMUTABLE,
+          "X-Content-Type-Options": "nosniff",
+        },
       });
     }
   }
@@ -198,14 +204,20 @@ const CONTENT_TYPES: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json",
+  ".map": "application/json",
+  ".xml": "application/xml",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".avif": "image/avif",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
+  ".woff": "font/woff",
   ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
   ".webmanifest": "application/manifest+json",
 };
 
@@ -215,6 +227,7 @@ const fileResponse = async (file: string, cacheControl: string): Promise<Respons
     headers: {
       "Content-Type": CONTENT_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream",
       "Cache-Control": cacheControl,
+      "X-Content-Type-Options": "nosniff",
     },
   });
 
@@ -239,7 +252,7 @@ const serveStatic = async (pathname: string, distDir: string | null): Promise<Re
   const indexFile = path.join(root, "index.html");
   if (target === root || target === indexFile) return fileResponse(indexFile, "no-cache");
   if (await isFile(target)) {
-    const cache = decoded.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache";
+    const cache = decoded.startsWith("/assets/") ? IMMUTABLE : "no-cache";
     return fileResponse(target, cache);
   }
   if (decoded.startsWith("/assets/")) return fail(404, "not found");
