@@ -20,6 +20,7 @@ import {
   X,
   Download,
   Upload,
+  Bot,
 } from "lucide-react";
 import { useEditor } from "../../context/EditorContext";
 import type { Project } from "../../types";
@@ -179,6 +180,7 @@ export const ProjectSwitcher = () => {
     switchProject,
     exportProject,
     importProject,
+    setIsAgentImportOpen,
   } = useEditor();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -353,6 +355,16 @@ export const ProjectSwitcher = () => {
             >
               <Upload className="w-4 h-4" />
               Import Project
+            </button>
+            <button
+              onClick={() => {
+                setIsAgentImportOpen(true);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <Bot className="w-4 h-4" />
+              Import from agent…
             </button>
             {importError && (
               <p className="px-3 pb-2 text-xs text-red-400">{importError}</p>
