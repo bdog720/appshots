@@ -6,7 +6,7 @@
  */
 
 import type { BackgroundSettings } from "./background-settings";
-import { resolveGradientStops } from "./background-settings";
+import { backgroundStopsOf } from "./background-settings";
 import { adjustLightness, rotateHue, mix } from "./color-utils";
 import { readableTextOptions, contrastRatio } from "./design-guidance";
 
@@ -88,14 +88,9 @@ export interface BrandLook {
   background: BackgroundSettings;
 }
 
-const stopsOf = (bg: BackgroundSettings): string[] => {
-  const stops = resolveGradientStops(bg);
-  return stops ? [stops.from, stops.to] : [bg.backgroundColor];
-};
-
 /** Pick the readable candidate with the best worst-case contrast across stops. */
 export const pickReadableTextColor = (bg: BackgroundSettings): string => {
-  const stops = stopsOf(bg);
+  const stops = backgroundStopsOf(bg);
   const mid = stops.length === 2 ? mix(stops[0], stops[1], 0.5) : stops[0];
   const candidates = readableTextOptions(mid);
   return candidates

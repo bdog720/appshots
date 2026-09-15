@@ -48,6 +48,14 @@ export const resolveGradientStops = (
   return { from: preset.from, to: preset.to };
 };
 
+/** The colors text sits on: both gradient stops, or the single background color. */
+export const backgroundStopsOf = (
+  bg: GradientResolvable & Pick<BackgroundSettings, "backgroundColor">,
+): string[] => {
+  const stops = resolveGradientStops(bg);
+  return stops ? [stops.from, stops.to] : [bg.backgroundColor];
+};
+
 /** Extracts only the background fields from a larger object. */
 export const pickBackgroundSettings = (
   source: BackgroundSettings,

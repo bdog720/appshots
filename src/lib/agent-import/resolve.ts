@@ -6,10 +6,7 @@
 
 import { devices, exportSizes, gradientPresets } from "../../constants";
 import type { DeviceSpec, ExportSize, ShadowConfig } from "../../types";
-import {
-  resolveGradientStops,
-  type BackgroundSettings,
-} from "../background-settings";
+import type { BackgroundSettings } from "../background-settings";
 import { adjustLightness } from "../color-utils";
 import { contrastRatio } from "../design-guidance";
 import { isAndroidDevice, isAndroidTablet } from "../device-platform";
@@ -66,10 +63,7 @@ export const toBackgroundSettings = (
   }
 };
 
-export const backgroundStopsOf = (bg: BackgroundSettings): string[] => {
-  const stops = resolveGradientStops(bg);
-  return stops ? [stops.from, stops.to] : [bg.backgroundColor];
-};
+export { backgroundStopsOf } from "../background-settings";
 
 export type DeviceFamily =
   | "apple-phone"
