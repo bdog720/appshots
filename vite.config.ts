@@ -22,6 +22,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // `bun run dev:server` serves the storage API on port 3000. Without it,
+    // /api requests fail and the app falls back to browser storage.
+    proxy: {
+      "/api": "http://localhost:3000",
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
