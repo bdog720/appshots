@@ -55,8 +55,29 @@ describe("buildAgentPrompt", () => {
       for (const color of device.colors) expect(prompt).toContain(`\`${color.id}\``);
     }
     for (const font of googleFonts) expect(prompt).toContain(font.family);
-    for (const size of exportSizes) expect(prompt).toContain(`\`${size.id}\``);
+    for (const size of exportSizes) {
+      // The landscape feature graphic is not a screenshot-set size.
+      if (size.id === "play-feature-graphic") continue;
+      expect(prompt).toContain(`\`${size.id}\``);
+    }
     for (const preset of gradientPresets) expect(prompt).toContain(`\`${preset.id}\``);
+  });
+
+  it("leaves the landscape feature graphic out of the export sizes", () => {
+    expect(prompt).not.toContain("play-feature-graphic");
+  });
+
+  it("spells out rules the compiler enforces silently", () => {
+    expect(prompt).toContain("`brand.style` requires `brand.primary`");
+    expect(prompt).toContain("Give each `devices[]` entry its own `x`, `y` and `scale`");
+    expect(prompt).toContain("`device` is ignored when a screen uses `devices`");
+    expect(prompt).toContain("The schema cannot check the exactly-one-of `image` / `devices` rule");
+  });
+
+  it("self-checks text contrast", () => {
+    expect(prompt).toContain(
+      "- [ ] Text is readable on its background: every screen with its own `background` also sets a readable `text.color`.",
+    );
   });
 
   it("states the output contract and embeds the example", () => {

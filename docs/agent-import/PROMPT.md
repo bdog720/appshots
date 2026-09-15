@@ -26,7 +26,7 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 
 ## 4. Visual rules
 
-- Choose **one** `brand.style` for the whole set. From `brand.primary` it picks the font, sizes, background and a readable text color. Override (`brand.font`, `brand.background`, …) only when the repository gives you a reason.
+- Choose **one** `brand.style` for the whole set. From `brand.primary` it picks the font, sizes, background and a readable text color. `brand.style` requires `brand.primary`; without it the style is ignored. Override (`brand.font`, `brand.background`, …) only when the repository gives you a reason.
 - Give `layout` a rhythm: hero `bleed-bottom`, then alternate (for example `tilt-left` / `tilt-right`), `perspective` at most twice, never the same layout more than three times in a row.
 - Keep one background across the set. Use a per-screen `background` only as a deliberate accent, and set that screen's `text.color` so text stays readable.
 - The device and `exportSize` must be the same platform (an iPhone with an iPhone size, a Pixel with a Play phone size). One `appshots.json` describes one device family; make a separate folder for an iPad or Android set.
@@ -118,7 +118,6 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 | `play-phone-20-9` | Play Store — Phone 20:9 (1080 × 2400) | 1080×2400 |
 | `play-tablet-7` | Play Store — 7" Tablet (1200 × 1920) | 1200×1920 |
 | `play-tablet-10` | Play Store — 10" Tablet (1600 × 2560) | 1600×2560 |
-| `play-feature-graphic` | Play Store — Feature Graphic (1024 × 500) | 1024×500 |
 
 ### Fonts (`brand.font`, `screens[].text.font`)
 
@@ -166,9 +165,10 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 
 - Write `appshots.json` (UTF-8) in the same folder as the images.
 - Required: `"format": "appshots-import"`, `"version": 1`, and `screens`. Each screen needs `headline` and **exactly one** of `image` (one device) or `devices` (a list, for multi-device screens).
+- Give each `devices[]` entry its own `x`, `y` and `scale` (for two devices, roughly `x` 32 and 68 with `scale` 55), or they overlap.
 - Image references are bare filenames of files in that folder.
-- Unknown keys are rejected. Validate against the JSON Schema: download it from AppShots' **Import from agent** dialog, or use `docs/agent-import/appshots-import.schema.json` in the AppShots repository.
-- Everything else is optional. Per-screen `text`, `device` and `background` override the brand and layout for that screen only.
+- Unknown keys are rejected. Validate against the JSON Schema: download it from AppShots' **Import from agent** dialog, or use `docs/agent-import/appshots-import.schema.json` in the AppShots repository. The schema cannot check the exactly-one-of `image` / `devices` rule, so check that by hand.
+- Everything else is optional. Per-screen `text`, `device` and `background` override the brand and layout for that screen only (`device` is ignored when a screen uses `devices`; put per-device settings on each `devices[]` entry instead).
 
 Worked example:
 
@@ -279,6 +279,7 @@ Worked example:
 - [ ] Every `layout`, `brand.style`, `device.id`, `device.color`, `exportSize`, font and preset id appears in the tables above.
 - [ ] Each screen has exactly one of `image` or `devices`.
 - [ ] Headlines are at most ~28 characters with at most one `<mark>`; subheadlines at most ~60.
+- [ ] Text is readable on its background: every screen with its own `background` also sets a readable `text.color`.
 - [ ] The device and export size are the same platform.
 - [ ] The hero screen is first and there are 5–10 screens.
 - [ ] `appshots.json` parses and validates against the schema.
