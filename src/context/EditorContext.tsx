@@ -61,6 +61,7 @@ import {
   replaceProjectContent,
   type AgentImportMode,
 } from "../lib/agent-import/apply";
+import { reconcileActiveScreenshotId } from "../lib/active-screenshot";
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
@@ -541,6 +542,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   // sweeps, typing bursts) coalesce into a single step via debounced recording.
   const applyHistorySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setScreenshotsState(snapshot.screenshots);
+    setActiveScreenshotIdState((prev) =>
+      reconcileActiveScreenshotId(prev, snapshot.screenshots),
+    );
     setTextDefaultsState(snapshot.textDefaults);
     setBackgroundDefaultsState(snapshot.backgroundDefaults);
     setSavedColorsState(snapshot.savedColors);

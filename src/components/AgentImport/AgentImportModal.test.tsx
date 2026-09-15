@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "../../types";
 
@@ -32,6 +32,8 @@ const pickFiles = () => {
   fireEvent.change(screen.getByLabelText("Choose files"), { target: { files: [file] } });
   return file;
 };
+
+const dropZone = () => screen.getByText(/Drop the folder with/).closest("div")!;
 
 describe("AgentImportModal", () => {
   beforeEach(() => {
@@ -103,5 +105,68 @@ describe("AgentImportModal", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /replace current project/i }));
     expect(applyAgentImport).toHaveBeenCalledWith(project, "replace");
+  });
+
+  it("ignores an import result that arrives after the modal was closed", async () => {
+    let resolveImport!: (value: unknown) => void;
+    runAgentImportMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveImport = resolve;
+      }),
+    );
+    const onClose = vi.fn();
+    const { rerender } = render(<AgentImportModal isOpen onClose={onClose} />);
+    pickFiles();
+    expect(await screen.findByRole("status")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /close import from agent/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    rerender(<AgentImportModal isOpen={false} onClose={onClose} />);
+
+    await act(async () => {
+      resolveImport({ ok: true, project, warnings: [] });
+    });
+
+    rerender(<AgentImportModal isOpen onClose={onClose} />);
+    expect(screen.getByLabelText("Choose files")).not.toBeNull();
+    expect(screen.queryByText("Habitly")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("shows a folder-walk failure as an import error", async () => {
+    const entry = {
+      isFile: true,
+      isDirectory: false,
+      name: "appshots.json",
+      file: (_success: (file: File) => void, error: (err: unknown) => void) =>
+        error(new Error("boom")),
+    };
+    render(<AgentImportModal isOpen onClose={vi.fn()} />);
+
+    fireEvent.drop(dropZone(), {
+      dataTransfer: { items: [{ webkitGetAsEntry: () => entry }], files: [] },
+    });
+
+    expect(await screen.findByText("boom")).not.toBeNull();
+    expect(runAgentImportMock).not.toHaveBeenCalled();
+  });
+
+  it("returns to the drop step when a drop yields no files", async () => {
+    render(<AgentImportModal isOpen onClose={vi.fn()} />);
+
+    fireEvent.drop(dropZone(), { dataTransfer: { items: [], files: [] } });
+
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(screen.getByLabelText("Choose files")).not.toBeNull();
+    expect(runAgentImportMock).not.toHaveBeenCalled();
+  });
+
+  it("swallows drops that miss the drop zone so the browser doesn't navigate", () => {
+    render(<AgentImportModal isOpen onClose={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+
+    expect(fireEvent.dragOver(dialog)).toBe(false);
+    expect(fireEvent.drop(dialog)).toBe(false);
+    expect(runAgentImportMock).not.toHaveBeenCalled();
   });
 });

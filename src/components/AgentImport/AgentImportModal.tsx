@@ -48,8 +48,11 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
   const [step, setStep] = useState<Step>({ kind: "drop" });
   const [copied, setCopied] = useState<"prompt" | "errors" | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // Bumped on close and on every new import; a result whose id is stale is ignored.
+  const requestIdRef = useRef(0);
 
   const close = () => {
+    requestIdRef.current += 1;
     setStep({ kind: "drop" });
     setCopied(null);
     onClose();
@@ -58,21 +61,32 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
 
   if (!isOpen) return null;
 
-  const importFiles = async (files: File[]) => {
-    if (files.length === 0) return;
+  // Accepts a pending folder walk so progress shows immediately and walk
+  // failures land in the same error step as pipeline failures.
+  const importFiles = async (source: File[] | Promise<File[]>) => {
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () => requestIdRef.current === requestId;
     setStep({ kind: "working" });
     try {
+      const files = await source;
+      if (!isCurrent()) return;
+      if (files.length === 0) {
+        setStep({ kind: "drop" });
+        return;
+      }
       const result = await runAgentImport(files, {
         readImage: readImageFile,
         generateId: createId,
         existingStorageChars: JSON.stringify(projects).length,
       });
+      if (!isCurrent()) return;
       setStep(
         result.ok
           ? { kind: "summary", project: result.project, warnings: result.warnings }
           : { kind: "errors", errors: result.errors },
       );
     } catch (error) {
+      if (!isCurrent()) return;
       setStep({
         kind: "errors",
         errors: [
@@ -85,7 +99,7 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
   const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = ""; // allow picking the same files again
-    void importFiles(files);
+    if (files.length > 0) void importFiles(files);
   };
 
   const copy = async (kind: "prompt" | "errors", text: string) => {
@@ -120,6 +134,9 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={close}
+      // Swallow drops that miss the drop zone so the browser doesn't open the file.
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => event.preventDefault()}
     >
       <div
         ref={modalRef}
@@ -177,7 +194,8 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
                   onDrop={(event) => {
                     event.preventDefault();
                     setIsDragOver(false);
-                    void filesFromDataTransfer(event.dataTransfer).then(importFiles);
+                    // Called synchronously: DataTransfer items must be read before any await.
+                    void importFiles(filesFromDataTransfer(event.dataTransfer));
                   }}
                   className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${
                     isDragOver ? "border-violet-500 bg-violet-500/10" : "border-white/10"
