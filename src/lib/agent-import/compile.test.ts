@@ -199,6 +199,61 @@ describe("compileManifest", () => {
     expect(markBackground(derived.project.screenshots[0].headline)).toBeTruthy();
   });
 
+  describe("explicit highlight contrast", () => {
+    const lightTextScreen = (headline: string, subheadline?: string) => ({
+      image: "01.png",
+      headline,
+      subheadline,
+      background: { type: "solid" as const, color: "#0F172A" },
+      text: { color: "#F8FAFC" },
+    });
+    const highlightWarnings = (warnings: { path: string; message: string }[]) =>
+      warnings.filter((w) => w.path === "brand.highlightColor");
+
+    it("warns when highlighted text would not contrast with its text color", () => {
+      const { warnings } = compile(
+        manifestOf({
+          brand: { highlightColor: "#FFD60A" },
+          screens: [
+            lightTextScreen("Build <mark>habits</mark>"),
+            lightTextScreen("Plain", "Now <mark>faster</mark>"),
+          ],
+        }),
+      );
+      const ratio = contrastRatio("#f8fafc", "#ffd60a").toFixed(2);
+      expect(highlightWarnings(warnings)).toEqual([
+        {
+          path: "brand.highlightColor",
+          message: `highlighted text on screens[0] is ${ratio}:1 against its text color #f8fafc; pick a highlight that contrasts with the text (≥ 3:1) or omit highlightColor`,
+        },
+        {
+          path: "brand.highlightColor",
+          message: `highlighted text on screens[1] is ${ratio}:1 against its text color #f8fafc; pick a highlight that contrasts with the text (≥ 3:1) or omit highlightColor`,
+        },
+      ]);
+    });
+
+    it("does not warn for a screen without highlighted text", () => {
+      const { warnings } = compile(
+        manifestOf({
+          brand: { highlightColor: "#FFD60A" },
+          screens: [lightTextScreen("Build habits", "No marks here")],
+        }),
+      );
+      expect(highlightWarnings(warnings)).toEqual([]);
+    });
+
+    it("does not warn for a highlight that contrasts with the text", () => {
+      const { warnings } = compile(
+        manifestOf({
+          brand: { highlightColor: "#4C1D95" },
+          screens: [lightTextScreen("Build <mark>habits</mark>")],
+        }),
+      );
+      expect(highlightWarnings(warnings)).toEqual([]);
+    });
+  });
+
   it("falls back on unknown ids with warnings", () => {
     const { project, warnings } = compile(
       manifestOf({

@@ -5,8 +5,7 @@
   "exportSize": "6.9",
   "brand": {
     "primary": "#5B5BD6",
-    "style": "bold",
-    "highlightColor": "#FFD60A"
+    "style": "bold"
   },
   "device": {
     "id": "iphone-17-pro",

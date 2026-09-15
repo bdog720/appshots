@@ -12,7 +12,7 @@ import {
   type BackgroundSettings,
 } from "../background-settings";
 import { generateBrandLook, pickReadableTextColor } from "../brand-guide";
-import { evaluateProjectContrast } from "../design-guidance";
+import { contrastRatio, evaluateProjectContrast } from "../design-guidance";
 import { DEFAULT_DEVICE_SHADOW, createDeviceInstance } from "../device-instances";
 import {
   DEFAULT_LAYOUT_PRESET_ID,
@@ -270,11 +270,19 @@ export const compileManifest = ({
     const highlight = brand.highlightColor
       ? normalizeHex(brand.highlightColor)
       : deriveHighlightColor(primary, shot.textColor, backgroundStopsOf(shot));
-    return {
-      ...shot,
-      headline: applyHighlightColor(shot.headline, highlight),
-      subheadline: applyHighlightColor(shot.subheadline, highlight),
-    };
+    const headlineHtml = applyHighlightColor(shot.headline, highlight);
+    const subheadlineHtml = applyHighlightColor(shot.subheadline, highlight);
+    // Highlighted text keeps the text color, so an explicit highlight must contrast with it.
+    if (brand.highlightColor && /<mark/i.test(headlineHtml + subheadlineHtml)) {
+      const ratio = contrastRatio(shot.textColor, highlight);
+      if (ratio < 3) {
+        note({
+          path: "brand.highlightColor",
+          message: `highlighted text on ${path} is ${ratio.toFixed(2)}:1 against its text color ${shot.textColor}; pick a highlight that contrasts with the text (≥ 3:1) or omit highlightColor`,
+        });
+      }
+    }
+    return { ...shot, headline: headlineHtml, subheadline: subheadlineHtml };
   };
 
   const screenshots = manifest.screens.map(buildScreen);

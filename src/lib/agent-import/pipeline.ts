@@ -27,7 +27,13 @@ export interface PipelineOptions {
 
 export type PipelineResult =
   | { ok: false; errors: ImportIssue[] }
-  | { ok: true; project: Project; warnings: ImportIssue[] };
+  | {
+      ok: true;
+      project: Project;
+      warnings: ImportIssue[];
+      /** Shown prominently: the import may push saved data past the storage budget. */
+      storageWarning: ImportIssue | null;
+    };
 
 export const runAgentImport = async (
   files: File[],
@@ -61,8 +67,8 @@ export const runAgentImport = async (
       bundleImageNames: [...bundle.images.values()].map((file) => file.name),
       generateId,
     });
-    const storage = checkStorageBudget(existingStorageChars, project);
-    return { ok: true, project, warnings: storage ? [storage, ...warnings] : warnings };
+    const storageWarning = checkStorageBudget(existingStorageChars, project);
+    return { ok: true, project, warnings, storageWarning };
   } catch (error) {
     if (error instanceof ImportError) return { ok: false, errors: error.issues };
     throw error;

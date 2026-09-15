@@ -27,6 +27,7 @@ describe("runAgentImport", () => {
     expect(result.project.screenshots).toHaveLength(1);
     expect(result.project.screenshots[0].devices[0].screenshotSrc).toBe("data:01.png");
     expect(result.warnings).toEqual([]);
+    expect(result.storageWarning).toBeNull();
   });
 
   it("returns bundle errors instead of throwing", async () => {
@@ -84,12 +85,14 @@ describe("runAgentImport", () => {
     expect(result.warnings.some((w) => w.message.includes("extra.png"))).toBe(true);
   });
 
-  it("lists the storage warning first", async () => {
+  it("reports the storage warning separately from the other warnings", async () => {
     const result = await runAgentImport(
       [manifest([{ image: "01.png", headline: "Hi" }]), png("01.png"), png("extra.png")],
       options(stubReadImage(), 4_500_000),
     );
     if (!result.ok) throw new Error("expected ok");
-    expect(result.warnings[0].message).toMatch(/stop saving/);
+    expect(result.storageWarning?.message).toMatch(/stop saving/);
+    expect(result.warnings.some((w) => /stop saving/.test(w.message))).toBe(false);
+    expect(result.warnings.some((w) => w.message.includes("extra.png"))).toBe(true);
   });
 });

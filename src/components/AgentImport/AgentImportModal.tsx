@@ -31,7 +31,12 @@ type Step =
   | { kind: "drop" }
   | { kind: "working" }
   | { kind: "errors"; errors: ImportIssue[] }
-  | { kind: "summary"; project: Project; warnings: ImportIssue[] };
+  | {
+      kind: "summary";
+      project: Project;
+      warnings: ImportIssue[];
+      storageWarning: ImportIssue | null;
+    };
 
 const createId = () => Math.random().toString(36).substring(2, 9);
 
@@ -82,7 +87,12 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
       if (!isCurrent()) return;
       setStep(
         result.ok
-          ? { kind: "summary", project: result.project, warnings: result.warnings }
+          ? {
+              kind: "summary",
+              project: result.project,
+              warnings: result.warnings,
+              storageWarning: result.storageWarning ?? null,
+            }
           : { kind: "errors", errors: result.errors },
       );
     } catch (error) {
@@ -297,6 +307,15 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
                       <li key={index}>{formatIssue(issue)}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {step.storageWarning && (
+                <div
+                  role="alert"
+                  className="space-y-1 rounded-lg border-2 border-rose-500/60 bg-rose-500/10 p-3 text-rose-200"
+                >
+                  <h4 className="text-sm font-semibold text-rose-100">This import may not save</h4>
+                  <p className="text-xs">{step.storageWarning.message}</p>
                 </div>
               )}
               <div className="space-y-2">

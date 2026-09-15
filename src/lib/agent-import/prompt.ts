@@ -101,15 +101,15 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 - Use the screenshots this repository's tooling already captures. One screen per feature, realistic demo data, no debug banners, empty states, or personal information.
 - Order matters: the strongest "hero" feature goes first, and the first two or three screens must sell the app on their own.
 - Use 5–10 screens, portrait, at the device's native resolution (see the device tables).
-- Save every image next to \`appshots.json\` with a unique filename (\`01-home.png\`, \`02-stats.png\`, …). PNG, JPEG or WebP.
+- Save every image next to \`appshots.json\` with a unique filename (\`01-home.webp\`, \`02-stats.webp\`, …). PNG, JPEG and WebP are accepted, but prefer WebP (quality about 90) or high-quality JPEG over PNG: AppShots stores projects in the browser (about 4–5 MB in total), so a large set of PNGs may not save.
 
 ## 3. Copy rules
 
 - **Headline:** 2–5 words, at most ~28 characters, benefit first ("Plan your week in seconds", not "Calendar screen"). Start with a verb where it reads naturally.
-- **Highlight:** at most one phrase per headline, wrapped in \`<mark>…</mark>\`.
+- **Highlight:** at most one phrase per headline, wrapped in \`<mark>…</mark>\`. Highlighted text keeps the headline's text color, so \`brand.highlightColor\` must contrast with the text color (at least 3:1) — or omit it and AppShots picks one.
 - **Subheadline:** optional, at most ~60 characters, adds a concrete detail. Omit it rather than repeat the headline.
 - Keep tone and tense consistent. Make no claims the repository can't back up (no "#1", awards, or prices unless they are real).
-- Only this inline HTML is kept: \`<b>\`, \`<strong>\`, \`<i>\`, \`<em>\`, \`<u>\`, \`<mark>\`, \`<br>\`, and \`<span style="color: #hex">\`. Everything else is removed. A newline becomes a line break.
+- Only this inline HTML is kept: \`<b>\`, \`<strong>\`, \`<i>\`, \`<em>\`, \`<u>\`, \`<mark>\`, \`<br>\`, plus \`color\` / \`background-color\` styles on \`<span>\` and \`background-color\` on \`<mark>\`. Everything else is removed. A newline becomes a line break.
 
 ## 4. Visual rules
 

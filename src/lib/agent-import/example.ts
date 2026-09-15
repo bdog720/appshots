@@ -38,7 +38,6 @@ export const EXAMPLE_MANIFEST: ImportManifest = {
   brand: {
     primary: "#5B5BD6",
     style: "bold",
-    highlightColor: "#FFD60A",
   },
   device: { id: "iphone-17-pro", color: "cosmic-orange", style: "flat", shadow: true },
   screens: [

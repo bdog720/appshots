@@ -92,10 +92,33 @@ describe("AgentImportModal", () => {
     expect(await screen.findByText("Habitly")).not.toBeNull();
     expect(screen.getByText("2 screens")).not.toBeNull();
     expect(screen.getByText("exportSize: platform mismatch")).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /create new project/i }));
     expect(applyAgentImport).toHaveBeenCalledWith(project, "new");
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls out the storage warning above the actions, apart from other warnings", async () => {
+    const storageMessage = "AppShots may stop saving your work";
+    runAgentImportMock.mockResolvedValue({
+      ok: true,
+      project,
+      warnings: [{ path: "exportSize", message: "platform mismatch" }],
+      storageWarning: { path: "", message: storageMessage },
+    });
+    render(<AgentImportModal isOpen onClose={vi.fn()} />);
+    pickFiles();
+
+    const callout = await screen.findByRole("alert");
+    expect(callout.textContent).toContain("This import may not save");
+    expect(callout.textContent).toContain(storageMessage);
+    expect(screen.getByText("1 warning")).not.toBeNull();
+    const warningList = screen.getByText("exportSize: platform mismatch").closest("ul")!;
+    expect(warningList.textContent).not.toContain(storageMessage);
+    // Directly above the action buttons.
+    const createButton = screen.getByRole("button", { name: /create new project/i });
+    expect(callout.nextElementSibling?.contains(createButton)).toBe(true);
   });
 
   it("can replace the current project", async () => {
