@@ -39,7 +39,7 @@ export interface LayoutPreset {
 }
 
 const TEXT_TOP = { headline: { x: 50, y: 10 }, subheadline: { x: 50, y: 18 } };
-const TEXT_BOTTOM = { headline: { x: 50, y: 80 }, subheadline: { x: 50, y: 88 } };
+const TEXT_BOTTOM = { headline: { x: 50, y: 87 }, subheadline: { x: 50, y: 94 } };
 
 export const LAYOUT_PRESETS: LayoutPreset[] = [
   {
