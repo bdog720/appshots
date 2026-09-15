@@ -26,7 +26,7 @@ export interface PersistedEditorState {
 export const CURRENT_VERSION = 2;
 
 /** localStorage key for editor state */
-const STORAGE_KEY = "app-screenshot-editor-state";
+export const STORAGE_KEY = "app-screenshot-editor-state";
 
 /** Debounce delay for auto-save (ms) */
 const AUTO_SAVE_DELAY = 1000;
