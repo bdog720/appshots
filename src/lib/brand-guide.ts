@@ -94,7 +94,7 @@ const stopsOf = (bg: BackgroundSettings): string[] => {
 };
 
 /** Pick the readable candidate with the best worst-case contrast across stops. */
-const pickTextColor = (bg: BackgroundSettings): string => {
+export const pickReadableTextColor = (bg: BackgroundSettings): string => {
   const stops = stopsOf(bg);
   const mid = stops.length === 2 ? mix(stops[0], stops[1], 0.5) : stops[0];
   const candidates = readableTextOptions(mid);
@@ -116,7 +116,7 @@ export const generateBrandLook = (
     fontFamily: vibe.fontFamily,
     headlineFontSize: vibe.headlineFontSize,
     subheadlineFontSize: vibe.subheadlineFontSize,
-    textColor: pickTextColor(background),
+    textColor: pickReadableTextColor(background),
     background,
   };
 };
