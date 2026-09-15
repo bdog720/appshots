@@ -5,12 +5,13 @@
  *   <dataDir>/projects/<id>.json        { revision, savedAt, project }
  *   <dataDir>/images/<sha256>.<ext>
  *
- * Every write goes to a temp file and is renamed into place. Writes to the same
- * project are serialized so a read-check-write can't interleave.
+ * Every write goes to a fsynced temp file and is renamed into place. Writes to
+ * the same project are serialized so a read-check-write can't interleave, and
+ * state.json updates are serialized under their own lock.
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { IMAGE_CONTENT_TYPES, detectImageType, isValidImageName, type ImageExt } from "./validation";
 
@@ -43,10 +44,27 @@ export type PutProjectResult =
   | { ok: true; revision: number; savedAt: number }
   | { ok: false; current: { revision: number; savedAt: number } };
 
+const STATE_LOCK = "state";
+/** Project ids can't contain ":", so this never collides with STATE_LOCK. */
+const projectLockKey = (id: string): string => `project:${id}`;
+
+const DEFAULT_STATE: AppState = { activeProjectId: null, projectOrder: [] };
+
 export const writeFileAtomic = async (target: string, data: string | Uint8Array): Promise<void> => {
   const temp = `${target}.${randomBytes(6).toString("hex")}.tmp`;
-  await writeFile(temp, data);
-  await rename(temp, target);
+  try {
+    const handle = await open(temp, "w");
+    try {
+      await handle.writeFile(data);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await rename(temp, target);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
 };
 
 const readJson = async <T>(file: string): Promise<T | null> => {
@@ -55,6 +73,16 @@ const readJson = async <T>(file: string): Promise<T | null> => {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
+  }
+};
+
+/** Like readJson, but an unreadable or unparsable file is warned about and treated as missing. */
+const readJsonOrSkip = async <T>(file: string): Promise<T | null> => {
+  try {
+    return await readJson<T>(file);
+  } catch (error) {
+    console.warn(`[store] skipping unreadable file ${file}: ${(error as Error).message}`);
+    return null;
   }
 };
 
@@ -77,9 +105,11 @@ export class FileStore {
     try {
       await mkdir(this.projectsDir, { recursive: true });
       await mkdir(this.imagesDir, { recursive: true });
-      const probe = path.join(this.dataDir, `.write-test-${randomBytes(4).toString("hex")}`);
-      await writeFile(probe, "ok");
-      await rm(probe, { force: true });
+      for (const dir of [this.dataDir, this.projectsDir, this.imagesDir]) {
+        const probe = path.join(dir, `.write-test-${randomBytes(4).toString("hex")}`);
+        await writeFile(probe, "ok");
+        await rm(probe, { force: true });
+      }
       return { writable: true };
     } catch {
       return { writable: false };
@@ -98,16 +128,21 @@ export class FileStore {
     return run;
   }
 
+  /** Serialize `task` with every other write to project `id`. */
+  protected withProjectLock<T>(id: string, task: () => Promise<T>): Promise<T> {
+    return this.withLock(projectLockKey(id), task);
+  }
+
   protected projectPath(id: string): string {
     return path.join(this.projectsDir, `${id}.json`);
   }
 
   async getState(): Promise<AppState & { projects: ProjectListing[] }> {
-    const saved = (await readJson<AppState>(this.statePath)) ?? { activeProjectId: null, projectOrder: [] };
+    const saved = (await readJsonOrSkip<AppState>(this.statePath)) ?? DEFAULT_STATE;
     const files = (await readdir(this.projectsDir)).filter((file) => file.endsWith(".json"));
     const listings: ProjectListing[] = [];
     for (const file of files) {
-      const stored = await readJson<StoredProject>(path.join(this.projectsDir, file));
+      const stored = await readJsonOrSkip<StoredProject>(path.join(this.projectsDir, file));
       if (stored) listings.push({ id: file.slice(0, -".json".length), revision: stored.revision, savedAt: stored.savedAt });
     }
     const byId = new Map(listings.map((listing) => [listing.id, listing]));
@@ -125,8 +160,14 @@ export class FileStore {
   }
 
   async putState(state: AppState): Promise<void> {
-    await this.withLock("state", () =>
-      writeFileAtomic(this.statePath, JSON.stringify({ activeProjectId: state.activeProjectId, projectOrder: state.projectOrder })),
+    await this.withLock(STATE_LOCK, () => this.writeState(state));
+  }
+
+  /** Unlocked; callers must hold STATE_LOCK. */
+  private writeState(state: AppState): Promise<void> {
+    return writeFileAtomic(
+      this.statePath,
+      JSON.stringify({ activeProjectId: state.activeProjectId, projectOrder: state.projectOrder }),
     );
   }
 
@@ -135,7 +176,7 @@ export class FileStore {
   }
 
   putProject(id: string, project: unknown, options: PutProjectOptions): Promise<PutProjectResult> {
-    return this.withLock(id, async () => {
+    return this.withProjectLock(id, async () => {
       const current = await this.getProject(id);
       const currentRevision = current?.revision ?? 0;
       if (currentRevision !== options.expectedRevision) {
@@ -157,7 +198,7 @@ export class FileStore {
   ): Promise<void> {}
 
   async deleteProject(id: string): Promise<boolean> {
-    const deleted = await this.withLock(id, async () => {
+    const deleted = await this.withProjectLock(id, async () => {
       const existing = await this.getProject(id);
       if (!existing) return false;
       await rm(this.projectPath(id), { force: true });
@@ -165,10 +206,12 @@ export class FileStore {
       return true;
     });
     if (deleted) {
-      const state = await this.getState();
-      await this.putState({
-        activeProjectId: state.activeProjectId,
-        projectOrder: state.projectOrder.filter((projectId) => projectId !== id),
+      await this.withLock(STATE_LOCK, async () => {
+        const state = await this.getState();
+        await this.writeState({
+          activeProjectId: state.activeProjectId,
+          projectOrder: state.projectOrder.filter((projectId) => projectId !== id),
+        });
       });
     }
     return deleted;

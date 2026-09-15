@@ -1,11 +1,20 @@
 /** @vitest-environment node */
-import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileStore } from "./store";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+/** Exposes the protected lock so its failure semantics can be tested directly. */
+class LockExposingStore extends FileStore {
+  lock<T>(key: string, task: () => Promise<T>): Promise<T> {
+    return this.withLock(key, task);
+  }
+}
+
+const nextTick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 let dir: string;
 let clock: number;
@@ -44,6 +53,117 @@ describe("FileStore init", () => {
     } finally {
       await chmod(locked, 0o700);
       await rm(locked, { recursive: true, force: true });
+    }
+  });
+
+  it("reports unwritable when projects/ is locked but the data directory is writable", async () => {
+    if (process.getuid?.() === 0) return; // root ignores permissions
+    const root = await mkdtemp(path.join(os.tmpdir(), "appshots-subdir-"));
+    const projects = path.join(root, "projects");
+    await mkdir(projects);
+    await chmod(projects, 0o500);
+    try {
+      expect(await new FileStore(root).init()).toEqual({ writable: false });
+    } finally {
+      await chmod(projects, 0o700);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("FileStore corrupt files", () => {
+  it("skips an unparsable project file when listing and warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await store.putProject("good", { v: 1 }, { expectedRevision: 0 });
+    await writeFile(path.join(dir, "projects", "bad.json"), "{trunc");
+
+    const state = await store.getState();
+    expect(state.projects.map((p) => p.id)).toEqual(["good"]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("treats an unparsable state.json as the default state while still listing projects", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await store.putProject("p1", { v: 1 }, { expectedRevision: 0 });
+    await writeFile(path.join(dir, "state.json"), "{trunc");
+
+    const state = await store.getState();
+    expect(state.activeProjectId).toBeNull();
+    expect(state.projectOrder).toEqual(["p1"]);
+    expect(state.projects.map((p) => p.id)).toEqual(["p1"]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("deletes a project even when a sibling project file is corrupt", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await store.putProject("p1", { v: 1 }, { expectedRevision: 0 });
+    await writeFile(path.join(dir, "projects", "bad.json"), "{trunc");
+
+    await expect(store.deleteProject("p1")).resolves.toBe(true);
+    expect(await store.getProject("p1")).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("still throws when reading a corrupt project directly", async () => {
+    await writeFile(path.join(dir, "projects", "bad.json"), "{trunc");
+    await expect(store.getProject("bad")).rejects.toThrow();
+  });
+});
+
+describe("FileStore concurrency", () => {
+  it("accepts exactly one of many concurrent creates", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => store.putProject("p", { i }, { expectedRevision: 0 })),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect((await store.getProject("p"))?.revision).toBe(1);
+  });
+
+  it("does not let a rejected locked task block the next one on the same key", async () => {
+    const exposed = new LockExposingStore(dir);
+    const failing = exposed.lock("k", async () => {
+      throw new Error("boom");
+    });
+    const next = exposed.lock("k", async () => "ok");
+    await expect(failing).rejects.toThrow("boom");
+    await expect(next).resolves.toBe("ok");
+  });
+
+  it("does not block a project named 'state' behind the state lock", async () => {
+    const exposed = new LockExposingStore(dir, () => clock);
+    let release: () => void = () => {};
+    const held = exposed.lock("state", () => new Promise<void>((resolve) => (release = resolve)));
+    await nextTick();
+
+    const result = await Promise.race([
+      exposed.putProject("state", { v: 1 }, { expectedRevision: 0 }),
+      new Promise((resolve) => setTimeout(() => resolve("blocked"), 200)),
+    ]);
+    release();
+    await held;
+    expect(result).toEqual({ ok: true, revision: 1, savedAt: clock });
+  });
+
+  it("never loses a concurrent putState while deleting a project", async () => {
+    await store.putProject("b", { v: 1 }, { expectedRevision: 0 });
+    await store.putProject("c", { v: 1 }, { expectedRevision: 0 });
+
+    for (let i = 0; i < 25; i++) {
+      await store.putProject("a", { v: 1 }, { expectedRevision: 0 });
+      await store.putState({ activeProjectId: "c", projectOrder: ["c", "a", "b"] });
+
+      const delayedPutState = async () => {
+        for (let tick = 0; tick < i; tick++) await nextTick();
+        await store.putState({ activeProjectId: "b", projectOrder: ["b", "a", "c"] });
+      };
+      await Promise.all([store.deleteProject("a"), delayedPutState()]);
+
+      const state = await store.getState();
+      expect(state.projectOrder).toEqual(["b", "c"]);
+      expect(state.activeProjectId).toBe("b");
     }
   });
 });
