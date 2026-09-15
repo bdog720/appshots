@@ -57,6 +57,11 @@ import {
   parseProjectFile,
   suggestProjectFilename,
 } from "../lib/project-io";
+import {
+  replaceProjectContent,
+  type AgentImportMode,
+} from "../lib/agent-import/apply";
+import { reconcileActiveScreenshotId } from "../lib/active-screenshot";
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
@@ -86,6 +91,8 @@ interface EditorContextType {
   exportProject: (id: string) => void;
   /** Import a project from a JSON backup file (throws on invalid input) */
   importProject: (file: File) => Promise<void>;
+  /** Apply a compiled agent import as a new project, or in place of the active one (undoable) */
+  applyAgentImport: (project: Project, mode: AgentImportMode) => void;
 
   // State
   isFontPickerOpen: boolean;
@@ -97,6 +104,8 @@ interface EditorContextType {
   setIsStarModalOpen: (open: boolean) => void;
   isShortcutsOpen: boolean;
   setIsShortcutsOpen: (open: boolean) => void;
+  isAgentImportOpen: boolean;
+  setIsAgentImportOpen: (open: boolean) => void;
   selectedDeviceId: string;
   setSelectedDeviceId: (id: string) => void;
   selectedColorId: string;
@@ -319,7 +328,7 @@ const normalizeScreenshot = (
   };
 };
 
-const normalizeProject = (project: Project & LegacyProjectFields): Project => {
+export const normalizeProject = (project: Project & LegacyProjectFields): Project => {
   const fallbackDeviceId = project.selectedDeviceId ?? devices[0].id;
   const fallbackColorId =
     project.selectedColorId ?? getDeviceSpecById(fallbackDeviceId).colors[0].id;
@@ -432,6 +441,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   >("screenshot");
   const [isStarModalOpen, setIsStarModalOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isAgentImportOpen, setIsAgentImportOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceIdState] = useState(
     activeProject.selectedDeviceId,
   );
@@ -532,6 +542,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   // sweeps, typing bursts) coalesce into a single step via debounced recording.
   const applyHistorySnapshot = useCallback((snapshot: EditorSnapshot) => {
     setScreenshotsState(snapshot.screenshots);
+    setActiveScreenshotIdState((prev) =>
+      reconcileActiveScreenshotId(prev, snapshot.screenshots),
+    );
     setTextDefaultsState(snapshot.textDefaults);
     setBackgroundDefaultsState(snapshot.backgroundDefaults);
     setSavedColorsState(snapshot.savedColors);
@@ -791,6 +804,32 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     };
     setProjects((prev) => [...prev, imported]);
     activateProject(imported);
+  };
+
+  // Apply an agent import. "new" appends and activates like importProject.
+  // "replace" swaps the active project's content in place WITHOUT resetting
+  // history, so a single undo restores the previous screenshots/defaults.
+  // (Export size and selected device are not part of undo history.)
+  const applyAgentImport = (compiled: Project, mode: AgentImportMode) => {
+    const normalized = normalizeProject(compiled);
+    if (mode === "new") {
+      setProjects((prev) => [...prev, normalized]);
+      activateProject(normalized);
+      return;
+    }
+
+    const replaced = replaceProjectContent(activeProject, normalized);
+    setSelectedDeviceIdState(replaced.selectedDeviceId);
+    setSelectedColorIdState(replaced.selectedColorId);
+    setExportSizeIdState(replaced.exportSizeId);
+    setScreenshotsState(replaced.screenshots);
+    setActiveScreenshotIdState(replaced.activeScreenshotId);
+    setTextDefaultsState(replaced.textDefaults);
+    setBackgroundDefaultsState(
+      replaced.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+    );
+    setSavedColorsState(replaced.savedColors);
+    setSelectedElement(null);
   };
 
   const selectedDevice =
@@ -1369,6 +1408,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         switchProject,
         exportProject,
         importProject,
+        applyAgentImport,
 
         isFontPickerOpen,
         setIsFontPickerOpen,
@@ -1378,6 +1418,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setIsStarModalOpen,
         isShortcutsOpen,
         setIsShortcutsOpen,
+        isAgentImportOpen,
+        setIsAgentImportOpen,
         selectedDeviceId,
         setSelectedDeviceId,
         selectedColorId,

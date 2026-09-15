@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_BACKGROUND_SETTINGS,
+  backgroundStopsOf,
   resolveGradientStops,
   applyBackgroundDefaultToScreenshots,
   overrideScreenshotBackground,
@@ -39,6 +40,34 @@ describe("resolveGradientStops", () => {
       gradientPresetId: "berry",
     });
     expect(stops).toEqual({ from: "#e1eec3", to: "#f05053" });
+  });
+});
+
+describe("backgroundStopsOf", () => {
+  it("returns the solid color as the only stop", () => {
+    expect(backgroundStopsOf(solid("#123456"))).toEqual(["#123456"]);
+  });
+
+  it("returns custom gradient stops", () => {
+    expect(
+      backgroundStopsOf({
+        backgroundMode: "gradient",
+        backgroundColor: "#111111",
+        gradientPresetId: null,
+        gradientFrom: "#111111",
+        gradientTo: "#222222",
+      }),
+    ).toEqual(["#111111", "#222222"]);
+  });
+
+  it("returns a named preset's stops", () => {
+    expect(
+      backgroundStopsOf({
+        backgroundMode: "gradient",
+        backgroundColor: "#e1eec3",
+        gradientPresetId: "berry",
+      }),
+    ).toEqual(["#e1eec3", "#f05053"]);
   });
 });
 

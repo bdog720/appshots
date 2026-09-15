@@ -50,6 +50,16 @@ Tests are Vitest + jsdom + Testing Library, colocated as `*.test.ts(x)`.
 3. Adding a **new Android brand** (not Samsung/Pixel) means broadening `ANDROID_PREFIXES` in `src/lib/device-platform.ts` — nothing else, thanks to the shared helper.
 4. Optionally add an App Store submission size to `exportSizes`.
 5. No component edits are needed for a normal iPhone/iPad/Galaxy/Pixel — data only.
+6. Run `bun run gen:agent-docs` so the agent import prompt lists the new device (`prompt.test.ts` fails otherwise).
+
+## Agent import
+
+`src/lib/agent-import/` turns an agent-written `appshots.json` + screenshots into an ordinary `Project`: `bundle.ts` (files/folder/zip) → `schema.ts` (Zod) → `compile.ts`, orchestrated by `pipeline.ts` and surfaced by `components/AgentImport/AgentImportModal.tsx` (Project menu → Import from agent).
+
+- `schema.ts` is the single source of truth for manifest types, validation errors and the published JSON Schema. Keep it free of `.transform()` (`z.toJSONSchema` can't represent transforms); normalize in `compile.ts`.
+- `docs/agent-import/PROMPT.md`, `appshots-import.schema.json` and `example/appshots.json` are **generated**. After changing the schema, devices, fonts, brand styles, layout presets or export sizes, run `bun run gen:agent-docs`; `prompt.test.ts` fails on stale docs.
+- Imported headline/subheadline HTML is untrusted — it must go through `sanitize.ts`.
+- Layout presets live in `src/lib/layout-presets.ts`, shared with the editor's Position Presets panel (which applies only the device part).
 
 ## Constraints & gotchas
 

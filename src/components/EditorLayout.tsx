@@ -5,6 +5,7 @@ import { FontPicker } from "./FontPicker";
 import { GitHubStarModal } from "./GitHubStarModal";
 import { NarrowScreenNotice } from "./NarrowScreenNotice";
 import { ShortcutsModal } from "./ShortcutsModal";
+import { AgentImportModal } from "./AgentImport/AgentImportModal";
 import { ExportProgressOverlay } from "./ExportProgressOverlay";
 import { useEditor } from "../context/EditorContext";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
@@ -21,6 +22,8 @@ export const EditorLayout = () => {
     setIsStarModalOpen,
     isShortcutsOpen,
     setIsShortcutsOpen,
+    isAgentImportOpen,
+    setIsAgentImportOpen,
     activeScreenshot,
     textDefaults,
     setTextDefault,
@@ -101,6 +104,10 @@ export const EditorLayout = () => {
         <ShortcutsModal
           isOpen={isShortcutsOpen}
           onClose={() => setIsShortcutsOpen(false)}
+        />
+        <AgentImportModal
+          isOpen={isAgentImportOpen}
+          onClose={() => setIsAgentImportOpen(false)}
         />
       </div>
       <ExportProgressOverlay />

@@ -6,7 +6,8 @@
     "dev": "bun --bun vite dev",
     "build": "bun --bun vite build && tsc",
     "preview": "bun --bun vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:agent-docs": "bun scripts/gen-agent-docs.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",
@@ -19,7 +20,8 @@
     "react-colorful": "^5.8.0",
     "react-dom": "^19.2.0",
     "react-helmet-async": "^2.0.5",
-    "tailwindcss": "^4.0.6"
+    "tailwindcss": "^4.0.6",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tanstack/react-router-devtools": "^1.132.0",
