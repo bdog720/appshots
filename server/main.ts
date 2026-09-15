@@ -12,7 +12,13 @@ import { FileStore } from "./store";
 
 const dataDir = process.env.APPSHOTS_DATA_DIR ?? "/data";
 const distDir = process.env.APPSHOTS_DIST_DIR ?? "dist";
-const port = Number(process.env.PORT ?? "80");
+const DEFAULT_PORT = 80;
+const rawPort = process.env.PORT;
+const parsedPort = rawPort === undefined ? DEFAULT_PORT : Number.parseInt(rawPort, 10);
+const port = Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : DEFAULT_PORT;
+if (rawPort !== undefined && port !== parsedPort) {
+  console.warn(`AppShots: ignoring invalid PORT ${JSON.stringify(rawPort)}; using ${DEFAULT_PORT}.`);
+}
 const password = process.env.APPSHOTS_PASSWORD?.trim() || null;
 
 const store = new FileStore(dataDir);
@@ -37,3 +43,16 @@ const server = Bun.serve({
 });
 
 console.log(`AppShots listening on port ${server.port} (data: ${dataDir})`);
+
+// Bun runs as PID 1 in the container, so stop cleanly on `docker stop` instead
+// of being killed mid-save. stop() lets in-flight requests finish.
+let shuttingDown = false;
+const shutdown = async () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log("AppShots shutting down");
+  await server.stop();
+  process.exit(0);
+};
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);
