@@ -3,7 +3,8 @@
  *
  *   <dataDir>/state.json               { activeProjectId, projectOrder }
  *   <dataDir>/projects/<id>.json        { revision, savedAt, project }
- *   <dataDir>/images/<sha256>.<ext>
+ *   <dataDir>/projects/<id>/history/<savedAt>-<revision>.json   { revision, savedAt, pinned, label?, project }
+ *   <dataDir>/images/<sha256>.<ext>     deleted by collectGarbage once unreferenced and past the grace period
  *
  * Every write goes to a fsynced temp file and is renamed into place. Writes to
  * the same project are serialized so a read-check-write can't interleave, and
@@ -11,9 +12,18 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { IMAGE_CONTENT_TYPES, detectImageType, isValidImageName, type ImageExt } from "./validation";
+import {
+  collectImageNames,
+  selectVersionsToKeep,
+  shouldAutoSnapshot,
+  summarizeProject,
+  versionName,
+  type ProjectSummary,
+  type VersionMeta,
+} from "./history";
+import { IMAGE_CONTENT_TYPES, detectImageType, isValidImageName, isValidVersion, type ImageExt } from "./validation";
 
 export interface AppState {
   activeProjectId: string | null;
@@ -43,6 +53,26 @@ export interface PutProjectOptions {
 export type PutProjectResult =
   | { ok: true; revision: number; savedAt: number }
   | { ok: false; current: { revision: number; savedAt: number } };
+
+export const IMAGE_GRACE_MS = 60 * 60 * 1000;
+export const PREVIOUS_VERSION_LABEL = "Before replace";
+export const RESTORE_LABEL = "Before restore";
+
+export interface HistoryEntry {
+  revision: number;
+  savedAt: number;
+  pinned: boolean;
+  label?: string;
+  project: unknown;
+}
+
+export interface HistorySummary extends ProjectSummary {
+  version: string;
+  revision: number;
+  savedAt: number;
+  pinned: boolean;
+  label?: string;
+}
 
 const STATE_LOCK = "state";
 /** Project ids can't contain ":", so this never collides with STATE_LOCK. */
@@ -85,6 +115,12 @@ const readJsonOrSkip = async <T>(file: string): Promise<T | null> => {
     return null;
   }
 };
+
+const exists = (file: string): Promise<boolean> =>
+  stat(file).then(
+    () => true,
+    () => false,
+  );
 
 export class FileStore {
   protected readonly projectsDir: string;
@@ -189,18 +225,162 @@ export class FileStore {
     });
   }
 
-  /** Hook for version history (Task 4). */
+  /** Writes version history for a save. Runs inside the project lock. */
   protected async afterProjectWrite(
-    _id: string,
-    _previous: StoredProject | null,
-    _next: StoredProject,
-    _options: PutProjectOptions,
-  ): Promise<void> {}
+    id: string,
+    previous: StoredProject | null,
+    next: StoredProject,
+    options: PutProjectOptions,
+  ): Promise<void> {
+    const newestSavedAt = await this.newestVersionSavedAt(id);
+    let wrote = false;
+    if (options.pinPrevious && previous) {
+      await this.writeVersion(id, { ...previous, pinned: true, label: PREVIOUS_VERSION_LABEL });
+      wrote = true;
+    }
+    if (options.pin) {
+      await this.writeVersion(id, { ...next, pinned: true, ...(options.label ? { label: options.label } : {}) });
+      wrote = true;
+    } else if (shouldAutoSnapshot(newestSavedAt, next.savedAt)) {
+      await this.writeVersion(id, { ...next, pinned: false });
+      wrote = true;
+    }
+    if (wrote) await this.pruneHistory(id);
+  }
+
+  private historyDir(id: string): string {
+    return path.join(this.projectsDir, id, "history");
+  }
+
+  private async writeVersion(id: string, entry: HistoryEntry): Promise<void> {
+    await mkdir(this.historyDir(id), { recursive: true });
+    const file = path.join(this.historyDir(id), `${versionName(entry.savedAt, entry.revision)}.json`);
+    await writeFileAtomic(file, JSON.stringify(entry));
+  }
+
+  private async versionNames(id: string): Promise<string[]> {
+    try {
+      return (await readdir(this.historyDir(id)))
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => file.slice(0, -".json".length))
+        .filter(isValidVersion);
+    } catch {
+      return [];
+    }
+  }
+
+  private async newestVersionSavedAt(id: string): Promise<number | null> {
+    const [newest] = await this.readVersions(id);
+    return newest?.savedAt ?? null;
+  }
+
+  private async readVersions(id: string): Promise<Array<VersionMeta & { entry: HistoryEntry }>> {
+    const versions: Array<VersionMeta & { entry: HistoryEntry }> = [];
+    for (const version of await this.versionNames(id)) {
+      const entry = await readJsonOrSkip<HistoryEntry>(path.join(this.historyDir(id), `${version}.json`));
+      if (entry) versions.push({ version, savedAt: entry.savedAt, pinned: entry.pinned, entry });
+    }
+    return versions.sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  private async pruneHistory(id: string): Promise<void> {
+    const versions = await this.readVersions(id);
+    const keep = selectVersionsToKeep(versions, this.now());
+    let removed = 0;
+    for (const version of versions) {
+      if (!keep.has(version.version)) {
+        await rm(path.join(this.historyDir(id), `${version.version}.json`), { force: true });
+        removed += 1;
+      }
+    }
+    if (removed > 0) await this.collectGarbage();
+  }
+
+  async listHistory(id: string): Promise<HistorySummary[] | null> {
+    if (!(await exists(this.projectPath(id)))) return null;
+    return (await this.readVersions(id)).map(({ version, entry }) => ({
+      version,
+      revision: entry.revision,
+      savedAt: entry.savedAt,
+      pinned: entry.pinned,
+      ...(entry.label ? { label: entry.label } : {}),
+      ...summarizeProject(entry.project),
+    }));
+  }
+
+  addHistory(id: string, project: unknown, label: string): Promise<boolean> {
+    return this.withProjectLock(id, async () => {
+      const current = await this.getProject(id);
+      if (!current) return false;
+      await this.writeVersion(id, { revision: current.revision, savedAt: this.now(), pinned: true, label, project });
+      await this.pruneHistory(id);
+      return true;
+    });
+  }
+
+  restoreVersion(id: string, version: string): Promise<StoredProject | null> {
+    return this.withProjectLock(id, async () => {
+      if (!isValidVersion(version)) return null;
+      const current = await this.getProject(id);
+      if (!current) return null;
+      const entry = await readJsonOrSkip<HistoryEntry>(path.join(this.historyDir(id), `${version}.json`));
+      if (!entry) return null;
+      await this.writeVersion(id, { ...current, pinned: true, label: RESTORE_LABEL });
+      const next: StoredProject = { revision: current.revision + 1, savedAt: this.now(), project: entry.project };
+      await writeFileAtomic(this.projectPath(id), JSON.stringify(next));
+      await this.pruneHistory(id);
+      return next;
+    });
+  }
+
+  /** Deletes images that no project or history file references and that are past the grace period. */
+  async collectGarbage(): Promise<number> {
+    const referenced = await this.referencedImages();
+    if (!referenced) return 0;
+    let deleted = 0;
+    for (const name of await readdir(this.imagesDir)) {
+      if (!isValidImageName(name) || referenced.has(name)) continue;
+      const info = await stat(path.join(this.imagesDir, name)).catch(() => null);
+      if (info && this.now() - info.mtimeMs > IMAGE_GRACE_MS) {
+        await rm(path.join(this.imagesDir, name), { force: true });
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+
+  /**
+   * Every image referenced by a project or history file, or null if any of those
+   * files can't be parsed — an unknown reference could be an image still in use.
+   */
+  private async referencedImages(): Promise<Set<string> | null> {
+    const files: string[] = [];
+    for (const entry of await readdir(this.projectsDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".json")) {
+        files.push(path.join(this.projectsDir, entry.name));
+      } else if (entry.isDirectory()) {
+        for (const version of await this.versionNames(entry.name)) {
+          files.push(path.join(this.historyDir(entry.name), `${version}.json`));
+        }
+      }
+    }
+    const referenced = new Set<string>();
+    for (const file of files) {
+      try {
+        const stored = await readJson<{ project?: unknown }>(file);
+        if (stored) collectImageNames(stored.project, referenced);
+      } catch (error) {
+        console.warn(`[store] skipping image cleanup, unreadable file ${file}: ${(error as Error).message}`);
+        return null;
+      }
+    }
+    return referenced;
+  }
 
   async deleteProject(id: string): Promise<boolean> {
     const deleted = await this.withProjectLock(id, async () => {
-      const existing = await this.getProject(id);
-      if (!existing) return false;
+      // Existence, not parsing: a corrupt project file must still be deletable.
+      if (!(await exists(this.projectPath(id)))) return false;
       await rm(this.projectPath(id), { force: true });
       await rm(path.join(this.projectsDir, id), { recursive: true, force: true });
       return true;
@@ -213,6 +393,7 @@ export class FileStore {
           projectOrder: state.projectOrder.filter((projectId) => projectId !== id),
         });
       });
+      await this.collectGarbage();
     }
     return deleted;
   }
@@ -222,11 +403,10 @@ export class FileStore {
     if (!ext) return null;
     const name = `${createHash("sha256").update(bytes).digest("hex")}.${ext}`;
     const target = path.join(this.imagesDir, name);
-    const exists = await stat(target).then(
-      () => true,
-      () => false,
-    );
-    if (!exists) await writeFileAtomic(target, bytes);
+    // Touching an existing image restarts its cleanup grace period, so a re-upload survives until
+    // it's saved into a project; if it doesn't exist (or was just cleaned up), write it.
+    const now = new Date(this.now());
+    await utimes(target, now, now).catch(() => writeFileAtomic(target, bytes));
     return name;
   }
 
