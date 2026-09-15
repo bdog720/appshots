@@ -319,7 +319,7 @@ const normalizeScreenshot = (
   };
 };
 
-const normalizeProject = (project: Project & LegacyProjectFields): Project => {
+export const normalizeProject = (project: Project & LegacyProjectFields): Project => {
   const fallbackDeviceId = project.selectedDeviceId ?? devices[0].id;
   const fallbackColorId =
     project.selectedColorId ?? getDeviceSpecById(fallbackDeviceId).colors[0].id;
