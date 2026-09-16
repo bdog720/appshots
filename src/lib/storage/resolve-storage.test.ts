@@ -40,6 +40,17 @@ describe("resolveStorage", () => {
     }
   });
 
+  it("uses browser storage when the health body is valid JSON but the wrong shape", async () => {
+    for (const fetchImpl of [
+      respond(200, JSON.stringify({})),
+      respond(200, JSON.stringify({ storage: "other", writable: true })),
+    ]) {
+      const result = await resolveStorage({ fetchImpl, createBrowserStorage: browser });
+      expect(result.storage.mode).toBe("browser");
+      expect(result.notice).toBeNull();
+    }
+  });
+
   it("gives up after the timeout", async () => {
     const hanging: FetchLike = (_url, init) =>
       new Promise((_resolve, reject) => {
