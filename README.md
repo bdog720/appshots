@@ -136,10 +136,10 @@ Stop it with `docker compose down`.
 
 ```bash
 docker build -t appshots .
-docker run -d -p 8080:80 --name appshots appshots
+docker run -d -p 8080:80 -v appshots-data:/data --name appshots appshots
 ```
 
-The image is a multi-stage build: Bun + Vite compile the static bundle, which is then served by nginx (with client-side-routing fallback and long-lived caching for hashed assets). The final image contains only the built assets — no toolchain or source.
+The image is a multi-stage build: Bun + Vite compile the app, and a small Bun server serves it together with the storage API. Projects, images and version history are saved in `/data` — mount a volume there or they are lost when the container is recreated.
 
 ### Prebuilt image (Dockge / Portainer / self-host)
 
@@ -153,9 +153,24 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
+    volumes:
+      - appshots-data:/data
+    # environment:
+    #   APPSHOTS_PASSWORD: change-me
+
+volumes:
+  appshots-data:
 ```
 
 In **Dockge**, create a new Compose stack, paste the above, and deploy. Pull updates later with the stack's **Update** button. (If the package is private, either make it public in the repo's Packages settings or log the host in to `ghcr.io` first.)
+
+### Storage, passwords and backups
+
+- **Where projects live:** with the Docker image, projects, images and version history are stored in the container's `/data` volume, so they're the same from any browser that can reach it. Running `bun run dev` (or hosting the static build elsewhere) saves to the browser instead. Use `bun run dev:server` alongside `bun run dev` to try container storage locally.
+- **Password:** set `APPSHOTS_PASSWORD` to require a login. Without it, anyone who can reach the port can read and change projects — keep it on your LAN or behind a reverse proxy with its own auth.
+- **Backups:** copy the volume (e.g. `docker run --rm -v appshots-data:/data -v "$PWD":/backup alpine tar czf /backup/appshots-data.tgz -C /data .`), or use **Export Project** for individual projects.
+- **Permissions:** the server runs as the `bun` user. If you bind-mount a host folder instead of a named volume, make sure that user can write to it, or AppShots falls back to browser storage and shows a warning.
+- **Upgrading:** when you first open a container that has no projects, AppShots moves the projects saved in that browser into it. The browser copy is kept as a backup.
 
 ## 🛠️ Tech Stack
 
