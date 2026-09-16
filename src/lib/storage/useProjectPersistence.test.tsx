@@ -54,6 +54,18 @@ const flushTimers = async (ms = 1000) => {
   });
 };
 
+/** Makes the next save hang so a test can act while it is in flight. */
+const holdNextSave = (saveProject: ReturnType<typeof createStorage>["saveProject"]) => {
+  let release!: (result: SaveResult) => void;
+  saveProject.mockImplementationOnce(() => new Promise<SaveResult>((resolve) => (release = resolve)));
+  return async (result: SaveResult) => {
+    await act(async () => {
+      release(result);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  };
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -132,6 +144,45 @@ describe("useProjectPersistence", () => {
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
+  it("advances the baseline only for the project whose save landed", async () => {
+    const { hook, saveProject } = setup();
+    const mineA = project("a", "mine A");
+    const mineB = project("b", "mine B");
+    saveProject
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new StorageError("Browser storage is full"));
+    hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "error", message: "Browser storage is full" });
+    expect(saveProject).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await hook.result.current.retry();
+    });
+    // A already landed, so the retry re-sends exactly B.
+    expect(saveProject).toHaveBeenCalledTimes(3);
+    expect(saveProject.mock.calls[2][0]).toBe(mineB);
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+  });
+
+  it("saves an edit that arrives while a save is in flight", async () => {
+    const { hook, saveProject } = setup();
+    const release = holdNextSave(saveProject);
+    hook.rerender({ projects: [project("a", "A1"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "saving" });
+
+    const newer = project("a", "A2");
+    hook.rerender({ projects: [newer, initial[1]], activeProjectId: "a" });
+    await release({ ok: true });
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
+
+    await flushTimers();
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    expect(saveProject.mock.calls[1][0]).toBe(newer);
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+  });
+
   it("pauses on conflict until Keep mine", async () => {
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
@@ -154,19 +205,74 @@ describe("useProjectPersistence", () => {
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
-  it("resets the baseline with markSaved", async () => {
+  it("keeps the conflict live when Keep mine fails", async () => {
+    const { hook, saveProject } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
+    await act(async () => {
+      await hook.result.current.keepMine();
+    });
+    // An error status here would strand the conflict and silently block every later save.
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+  });
+
+  it("resets one project's baseline with markSaved", async () => {
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
     hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
     await flushTimers();
 
     const theirs = project("a", "theirs");
-    act(() => {
-      hook.result.current.markSaved([theirs, initial[1]], "a");
-    });
     hook.rerender({ projects: [theirs, initial[1]], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(theirs);
+    });
     await flushTimers();
     expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+  });
+
+  it("keeps a sibling's edits plannable when markSaved resolves a conflict", async () => {
+    const { hook, saveProject } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    const mineA = project("a", "mine A");
+    const mineB = project("b", "mine B");
+    hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
+    await flushTimers();
+    // A conflicted, so B never went out.
+    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    const theirsA = project("a", "theirs A");
+    hook.rerender({ projects: [theirsA, mineB], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(theirsA);
+    });
+    await flushTimers();
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    expect(saveProject.mock.calls[1][0]).toBe(mineB);
+  });
+
+  it("ignores a flush that markSaved superseded", async () => {
+    const { hook, saveProject } = setup("server");
+    const release = holdNextSave(saveProject);
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "saving" });
+
+    const theirs = project("a", "theirs");
+    hook.rerender({ projects: [theirs, initial[1]], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(theirs);
+    });
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+
+    // The superseded save must not re-open the conflict the user just resolved.
+    await release({ ok: false, conflict: { revision: 9, savedAt: 80 } });
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
@@ -177,6 +283,8 @@ describe("useProjectPersistence", () => {
     window.dispatchEvent(serverEvent);
     expect(serverEvent.defaultPrevented).toBe(true);
     expect(server.saveProjectOnUnload).toHaveBeenCalledWith(expect.objectContaining({ name: "unsaved" }));
+    // No synchronous fallback in server mode.
+    expect(server.saveProject).not.toHaveBeenCalled();
     server.hook.unmount();
 
     const browser = setup("browser");
@@ -189,5 +297,42 @@ describe("useProjectPersistence", () => {
     window.dispatchEvent(browserEvent);
     expect(browserEvent.defaultPrevented).toBe(false);
     expect(browser.saveProject).toHaveBeenCalledWith(expect.objectContaining({ name: "unsaved" }));
+    expect(browser.saveProjectOnUnload).not.toHaveBeenCalled();
+  });
+
+  it("asks for the leave-page prompt even when the keepalive save can't be sent", async () => {
+    const { hook, saveProject, saveProjectOnUnload } = setup("server");
+    saveProjectOnUnload.mockReturnValue(false);
+    hook.rerender({ projects: [project("a", "unsaved"), initial[1]], activeProjectId: "a" });
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    expect(saveProjectOnUnload).toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+    expect(saveProject).not.toHaveBeenCalled();
+  });
+
+  it("saves pending edits when the editor unmounts mid-debounce", () => {
+    const browser = setup("browser");
+    const unsaved = project("a", "unsaved");
+    browser.hook.rerender({ projects: [unsaved, initial[1]], activeProjectId: "a" });
+    browser.hook.unmount();
+    expect(browser.saveProject).toHaveBeenCalledWith(unsaved);
+
+    const server = setup("server");
+    const pending = project("a", "pending");
+    server.hook.rerender({ projects: [pending, initial[1]], activeProjectId: "a" });
+    server.hook.unmount();
+    expect(server.saveProjectOnUnload).toHaveBeenCalledWith(pending);
+    expect(server.saveProject).not.toHaveBeenCalled();
+  });
+
+  it("removes the unload listener on unmount", () => {
+    const { hook, saveProject, saveProjectOnUnload } = setup("browser");
+    hook.unmount();
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    expect(saveProject).not.toHaveBeenCalled();
+    expect(saveProjectOnUnload).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 });
