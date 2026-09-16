@@ -169,7 +169,7 @@ describe("EditorProvider storage wiring", () => {
       editor.renameProject("a", "Mine");
     });
     await settle();
-    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(editor.saveConflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     const theirs = { ...editor.projects[0], name: "Theirs" };
     reloadProject.mockResolvedValueOnce(theirs);
@@ -198,7 +198,7 @@ describe("EditorProvider storage wiring", () => {
       editor.renameProject("a", "Mine");
     });
     await settle();
-    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(editor.saveConflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     reloadProject.mockResolvedValueOnce(null);
     await expect(editor.loadTheirVersion()).rejects.toThrow(/no longer in the container/i);
@@ -288,7 +288,7 @@ describe("EditorProvider storage wiring", () => {
       editor.renameProject("a", "Mine");
     });
     await settle();
-    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(editor.saveConflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     restoreVersion.mockResolvedValueOnce({ ...editor.projects[0], name: "Restored" });
     await act(async () => {

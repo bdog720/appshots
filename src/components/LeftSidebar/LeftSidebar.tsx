@@ -42,6 +42,8 @@ export const LeftSidebar = () => {
     screenshots,
     storageMode,
     saveStatus,
+    saveConflict,
+    activeProjectId,
     saveNow,
     retrySave,
     setIsHistoryOpen,
@@ -62,6 +64,8 @@ export const LeftSidebar = () => {
         <ProjectSwitcher />
         <SaveIndicator
           status={saveStatus}
+          conflict={saveConflict}
+          activeProjectId={activeProjectId}
           storageMode={storageMode}
           onSaveNow={() => void saveNow()}
           onRetry={() => void retrySave()}

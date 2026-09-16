@@ -43,7 +43,7 @@ export const EditorLayout = () => {
     handleExport,
     projects,
     saveNow,
-    saveStatus,
+    saveConflict,
     startupNotice,
     dismissStartupNotice,
     keepMyVersion,
@@ -96,10 +96,10 @@ export const EditorLayout = () => {
       )}
       <StorageBanners
         notice={startupNotice}
-        conflict={saveStatus.kind === "conflict" ? saveStatus : null}
+        conflict={saveConflict}
         conflictProjectName={
-          saveStatus.kind === "conflict"
-            ? (projects.find((project) => project.id === saveStatus.projectId)?.name ?? null)
+          saveConflict
+            ? (projects.find((project) => project.id === saveConflict.projectId)?.name ?? null)
             : null
         }
         onDismissNotice={dismissStartupNotice}

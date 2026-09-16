@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { History } from "lucide-react";
 import { BROWSER_STORAGE_FULL_MESSAGE } from "../../lib/storage/browser-storage";
 import type { StorageMode } from "../../lib/storage/types";
-import type { SaveStatus } from "../../lib/storage/useProjectPersistence";
+import type { SaveConflict, SaveStatus } from "../../lib/storage/useProjectPersistence";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -22,6 +22,8 @@ const BUTTON =
 
 export const SaveIndicator = ({
   status,
+  conflict,
+  activeProjectId,
   storageMode,
   onSaveNow,
   onRetry,
@@ -29,6 +31,9 @@ export const SaveIndicator = ({
   now = Date.now,
 }: {
   status: SaveStatus;
+  /** The project another tab or device changed, if any. */
+  conflict: SaveConflict | null;
+  activeProjectId: string;
   storageMode: StorageMode;
   onSaveNow: () => void;
   onRetry: () => void;
@@ -76,10 +81,15 @@ export const SaveIndicator = ({
         }
       }
       break;
-    case "conflict":
-      dot = "bg-red-500";
-      label = "Changed elsewhere";
-      break;
+  }
+
+  // The conflict belongs to one project, so it's reported when that project is
+  // the one on screen — but never over an error, which is both more urgent and
+  // the only status carrying a button that fixes it.
+  const activeConflicted = conflict !== null && conflict.projectId === activeProjectId;
+  if (activeConflicted && status.kind !== "error") {
+    dot = "bg-red-500";
+    label = "Changed elsewhere";
   }
 
   return (
@@ -112,7 +122,7 @@ export const SaveIndicator = ({
           type="button"
           className={BUTTON}
           onClick={onSaveNow}
-          disabled={status.kind === "saving" || status.kind === "conflict"}
+          disabled={status.kind === "saving" || activeConflicted}
         >
           Save now
         </button>

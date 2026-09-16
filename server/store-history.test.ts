@@ -79,6 +79,23 @@ describe("history writes", () => {
     expect(await store.listHistory("p")).toHaveLength(20);
   });
 
+  it("reports a save that succeeded even when the prune's image cleanup fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 24; i += 1) {
+      await save("p", `v${i}`);
+      clock += 11 * MINUTE;
+    }
+    // The project file is written before retention prunes, so a cleanup
+    // failure here reports a save that succeeded as a 500 — the client then
+    // shows an error, and its next attempt carries a stale revision.
+    vi.spyOn(store, "collectGarbage").mockRejectedValueOnce(new Error("cleanup blew up"));
+
+    await expect(save("p", "latest")).resolves.toMatchObject({ ok: true });
+    expect((await store.getProject("p"))?.project).toEqual(projectWith("latest"));
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("returns null history for a missing project", async () => {
     expect(await store.listHistory("missing")).toBeNull();
   });

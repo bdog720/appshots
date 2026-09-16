@@ -45,6 +45,7 @@ import {
 } from "../lib/storage/types";
 import {
   useProjectPersistence,
+  type SaveConflict,
   type SaveStatus,
 } from "../lib/storage/useProjectPersistence";
 import type { TextSettings, TextSettingKey } from "../lib/text-settings";
@@ -116,9 +117,15 @@ interface EditorContextType {
   /** Where projects are saved this session */
   storageMode: StorageMode;
   saveStatus: SaveStatus;
+  /**
+   * A project another tab or device changed underneath this session. Separate
+   * from saveStatus: the banner reads this, so the status can keep reporting
+   * what just happened to every other project.
+   */
+  saveConflict: SaveConflict | null;
   /** Save pending edits now; pins a history version in container mode. */
   saveNow: () => Promise<void>;
-  /** Try a failed save again. A no-op while a conflict is pending. */
+  /** Try a failed save again. Projects held by a conflict are skipped. */
   retrySave: () => Promise<void>;
   keepMyVersion: () => Promise<void>;
   loadTheirVersion: () => Promise<void>;
@@ -913,12 +920,12 @@ export const EditorProvider = ({
 
   // Conflict resolution: take the copy storage has, keeping ours in history.
   const loadTheirVersion = async () => {
-    const status = persistence.status;
-    if (status.kind !== "conflict" || !isServerStorage(storage)) return;
+    const conflict = persistence.conflict;
+    if (!conflict || !isServerStorage(storage)) return;
     // Read their copy first: if the project is gone server-side there is no
     // version to load, and pinning ours into a history that no longer exists
     // would fail with a confusing message before we could say so.
-    const theirs = await storage.reloadProject(status.projectId);
+    const theirs = await storage.reloadProject(conflict.projectId);
     if (!theirs) {
       // Thrown, not swallowed: the banner shows this next to its buttons.
       // Returning quietly left both buttons looking live with nothing having
@@ -927,7 +934,7 @@ export const EditorProvider = ({
         "That project is no longer in the container — choose “Keep mine” to save your copy back.",
       );
     }
-    const mine = projects.find((p) => p.id === status.projectId);
+    const mine = projects.find((p) => p.id === conflict.projectId);
     if (mine) await storage.addHistory(mine, "Discarded local changes");
     replaceProjectFromStorage(theirs);
   };
@@ -947,9 +954,9 @@ export const EditorProvider = ({
     const localCopy = projects.find((project) => project.id === projectId);
     if (!localCopy) throw new Error("Can't find the current project to save before restoring");
     await persistence.retry(); // best-effort: also save pending edits normally
-    // retry() is a no-op while a conflict is pending, and swallows a save
-    // failure into an error status rather than throwing — so its outcome
-    // can't be trusted here. Pin the in-memory copy directly rather than
+    // retry() skips a project held by a conflict, and swallows a save failure
+    // into an error status rather than throwing — so its outcome can't be
+    // trusted here. Pin the in-memory copy directly rather than
     // relying on it having already reached the server (the restore itself
     // also auto-pins the server's own current copy under the same-looking
     // "Before restore" label — kept distinct here since that copy is stale
@@ -1524,6 +1531,7 @@ export const EditorProvider = ({
         setIsAgentImportOpen,
         storageMode: storage.mode,
         saveStatus: persistence.status,
+        saveConflict: persistence.conflict,
         saveNow: persistence.saveNow,
         retrySave: persistence.retry,
         keepMyVersion: persistence.keepMine,

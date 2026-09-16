@@ -293,7 +293,15 @@ export class FileStore {
         removed += 1;
       }
     }
-    if (removed > 0) await this.collectGarbage();
+    // Same class as the delete path: the versions are already pruned and the
+    // project file already written, so a cleanup failure here would report the
+    // save (or restore) that triggered it as a 500 — and the client's next
+    // attempt would then carry a stale revision.
+    if (removed > 0) {
+      await this.collectGarbage().catch((error: unknown) => {
+        console.warn(`[store] image cleanup after pruning ${id} failed: ${(error as Error).message}`);
+      });
+    }
   }
 
   async listHistory(id: string): Promise<HistorySummary[] | null> {

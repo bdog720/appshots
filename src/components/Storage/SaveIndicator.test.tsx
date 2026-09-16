@@ -1,14 +1,29 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BROWSER_STORAGE_FULL_MESSAGE } from "../../lib/storage/browser-storage";
-import type { SaveStatus } from "../../lib/storage/useProjectPersistence";
+import type { SaveConflict, SaveStatus } from "../../lib/storage/useProjectPersistence";
 import { SaveIndicator, formatSavedAt } from "./SaveIndicator";
 
 const NOW = new Date(2026, 8, 15, 12, 0).getTime();
 
-const renderIndicator = (status: SaveStatus, storageMode: "server" | "browser" = "server") => {
+const CONFLICT: SaveConflict = { kind: "conflict", projectId: "p", revision: 3, savedAt: 1 };
+
+const renderIndicator = (
+  status: SaveStatus,
+  storageMode: "server" | "browser" = "server",
+  conflict: SaveConflict | null = null,
+) => {
   const handlers = { onSaveNow: vi.fn(), onRetry: vi.fn(), onOpenHistory: vi.fn() };
-  render(<SaveIndicator status={status} storageMode={storageMode} now={() => NOW} {...handlers} />);
+  render(
+    <SaveIndicator
+      status={status}
+      conflict={conflict}
+      activeProjectId="p"
+      storageMode={storageMode}
+      now={() => NOW}
+      {...handlers}
+    />,
+  );
   return handlers;
 };
 
@@ -24,7 +39,15 @@ describe("formatSavedAt", () => {
 describe("SaveIndicator", () => {
   it("shows each save state", () => {
     const { unmount } = render(
-      <SaveIndicator status={{ kind: "dirty" }} storageMode="browser" onSaveNow={vi.fn()} onRetry={vi.fn()} onOpenHistory={vi.fn()} />,
+      <SaveIndicator
+        status={{ kind: "dirty" }}
+        conflict={null}
+        activeProjectId="p"
+        storageMode="browser"
+        onSaveNow={vi.fn()}
+        onRetry={vi.fn()}
+        onOpenHistory={vi.fn()}
+      />,
     );
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
     unmount();
@@ -79,14 +102,31 @@ describe("SaveIndicator", () => {
     }
   });
 
-  it("shows conflicts", () => {
-    renderIndicator({ kind: "conflict", projectId: "p", revision: 3, savedAt: 1 });
+  it("names the conflict when it's the project on screen, and holds Save now", () => {
+    renderIndicator({ kind: "dirty" }, "server", CONFLICT);
     expect(screen.getByText("Changed elsewhere")).not.toBeNull();
+    expect((screen.getByRole("button", { name: "Save now" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("disables Save now while a conflict is pending", () => {
-    renderIndicator({ kind: "conflict", projectId: "p", revision: 3, savedAt: 1 });
-    expect((screen.getByRole("button", { name: "Save now" }) as HTMLButtonElement).disabled).toBe(true);
+  it("leaves Save now alive when the conflict belongs to another project", () => {
+    // Only the conflicted project is held back; the one on screen still saves,
+    // so a dead Save now button here would be a lie about this project.
+    renderIndicator({ kind: "dirty" }, "server", { ...CONFLICT, projectId: "other" });
+    expect(screen.getByText("Unsaved changes")).not.toBeNull();
+    expect((screen.getByRole("button", { name: "Save now" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("still reports a failed save while a conflict is live", () => {
+    // The failure is the more urgent of the two, and it's the only one whose
+    // fix — Retry — lives in this indicator; the conflict has its own banner.
+    const handlers = renderIndicator(
+      { kind: "error", message: "Can't reach the AppShots server" },
+      "server",
+      CONFLICT,
+    );
+    expect(screen.getByText("Couldn't save")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(handlers.onRetry).toHaveBeenCalledTimes(1);
   });
 
   it("saves now and opens history in container mode only", () => {

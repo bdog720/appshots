@@ -192,7 +192,10 @@ describe("useProjectPersistence", () => {
     const mine = project("a", "mine");
     hook.rerender({ projects: [mine, initial[1]], activeProjectId: "a" });
     await flushTimers();
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    // The conflict is carried on its own, so the status is free to say the
+    // plain truth: this project's changes are not saved.
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
 
     hook.rerender({ projects: [project("a", "mine again"), initial[1]], activeProjectId: "a" });
     await flushTimers();
@@ -217,7 +220,7 @@ describe("useProjectPersistence", () => {
     const mineA = project("a", "mine A");
     hook.rerender({ projects: [mineA, initial[1]], activeProjectId: "a" });
     await flushTimers();
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
     expect(saveProject).toHaveBeenCalledTimes(1);
 
     const mineB = project("b", "mine B");
@@ -227,13 +230,15 @@ describe("useProjectPersistence", () => {
     expect(saveProject).toHaveBeenCalledTimes(2);
     expect(saveProject.mock.calls[1][0]).toBe(mineB);
     // Only the conflicted project waits, and its banner stays up.
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    // A is still unsaved, so this reads "Unsaved changes" rather than "Saved".
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
   });
 
-  it("keeps the conflict on screen when a sibling's save fails", async () => {
-    // The banner is the only way to resolve the conflict, and it renders off
-    // this status — replacing it with the sibling's error would strand the
-    // conflict with no affordance at all.
+  it("reports a sibling's failed save while the conflict stays live", async () => {
+    // The conflict is carried separately from the status, so a sibling's
+    // failure doesn't have to be swallowed to keep the banner alive: hiding it
+    // left the user with no message, no Retry button and no re-armed flush.
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
     const mineA = project("a", "mine A");
@@ -241,26 +246,97 @@ describe("useProjectPersistence", () => {
     await flushTimers();
 
     saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
-    hook.rerender({ projects: [mineA, project("b", "mine B")], activeProjectId: "a" });
+    const mineB = project("b", "mine B");
+    hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
     await flushTimers();
 
     expect(saveProject).toHaveBeenCalledTimes(2);
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.status).toEqual({
+      kind: "error",
+      message: "Can't reach the AppShots server",
+    });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    // And the Retry the error status offers actually re-sends the sibling.
+    await act(async () => {
+      await hook.result.current.retry();
+    });
+    expect(saveProject).toHaveBeenCalledTimes(3);
+    expect(saveProject.mock.calls[2][0]).toBe(mineB);
+    // A is still held and still unsaved, so this is "Unsaved changes", not "Saved".
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
   });
 
-  it("keeps the conflict live when Keep mine fails", async () => {
+  it("holds every conflicted project, not just the one it shows", async () => {
+    // A 409 resyncs the client's tracked revision, so a conflicted project
+    // that isn't held would sail through on its very next save — landing on
+    // top of the other writer with no banner, no prompt and no pinPrevious.
+    const { hook, saveProject } = setup("server");
+    saveProject
+      .mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } })
+      .mockResolvedValueOnce({ ok: false, conflict: { revision: 9, savedAt: 80 } });
+    const mineA = project("a", "mine A");
+    const mineB = project("b", "mine B");
+    hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
+    await flushTimers();
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    // One of them is on display; both are held.
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    hook.rerender({ projects: [mineA, project("b", "mine B2")], activeProjectId: "a" });
+    await flushTimers();
+    expect(saveProject).toHaveBeenCalledTimes(2);
+
+    // Resolving the displayed one must not release the other.
+    await act(async () => {
+      await hook.result.current.keepMine();
+    });
+    expect(saveProject).toHaveBeenCalledTimes(3);
+    expect(saveProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "a" }),
+      { baseRevision: 7, pinPrevious: true },
+    );
+    expect(saveProject.mock.calls.filter((call) => call[0].id === "b")).toHaveLength(1);
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "b", revision: 9, savedAt: 80 });
+  });
+
+  it("doesn't delete the container's copy when Keep mine finds the project deleted here", async () => {
+    // "Keep mine" on a project deleted in this tab has no copy to keep — and
+    // must not turn into "delete theirs": the other writer's version is the
+    // only one left.
+    const { hook, saveProject, deleteProject } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+
+    hook.rerender({ projects: [initial[1]], activeProjectId: "b" });
+    await flushTimers();
+    expect(deleteProject).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await hook.result.current.keepMine();
+    });
+    await flushTimers();
+    expect(deleteProject).not.toHaveBeenCalled();
+    expect(hook.result.current.conflict).toBeNull();
+  });
+
+  it("keeps the conflict live and reports why when Keep mine fails", async () => {
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
     hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
     await flushTimers();
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
     await act(async () => {
-      await hook.result.current.keepMine();
+      // Thrown rather than swallowed: the banner shows this beside its own
+      // buttons, which is where the user is looking and where the retry is.
+      await expect(hook.result.current.keepMine()).rejects.toThrow("Can't reach the AppShots server");
     });
-    // An error status here would strand the conflict and silently block every later save.
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    // The conflict is still live, so the affordance survives the failure.
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
 
     // The affordance is still live: a second attempt saves on the same revision.
     await act(async () => {
@@ -325,7 +401,12 @@ describe("useProjectPersistence", () => {
     hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
     await flushTimers();
     expect(saveProject).toHaveBeenCalledTimes(2);
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    // B's failure is reported rather than hidden behind the conflict.
+    expect(hook.result.current.status).toEqual({
+      kind: "error",
+      message: "Can't reach the AppShots server",
+    });
 
     const theirsA = project("a", "theirs A");
     hook.rerender({ projects: [theirsA, mineB], activeProjectId: "a" });
@@ -500,7 +581,7 @@ describe("useProjectPersistence", () => {
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
     hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
     await flushTimers();
-    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);

@@ -54,6 +54,7 @@ const baseContext = (storageMode: "server" | "browser") => ({
   projects: [],
   saveNow: vi.fn(),
   saveStatus: { kind: "saved", at: null },
+  saveConflict: null,
   startupNotice: { unwritable: false, migratedCount: 0 },
   dismissStartupNotice: vi.fn(),
   keepMyVersion: vi.fn(),

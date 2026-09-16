@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { StartupNotice } from "../../context/EditorContext";
-import type { SaveStatus } from "../../lib/storage/useProjectPersistence";
+import type { SaveConflict } from "../../lib/storage/useProjectPersistence";
 
 const BAR = "flex flex-wrap items-center justify-center gap-3 px-4 py-2 text-xs";
 const ACTION = "rounded-md border border-white/15 px-2.5 py-1 font-medium hover:bg-white/10 disabled:opacity-50";
@@ -16,7 +16,7 @@ export const StorageBanners = ({
   onLoadTheirs,
 }: {
   notice: StartupNotice;
-  conflict: Extract<SaveStatus, { kind: "conflict" }> | null;
+  conflict: SaveConflict | null;
   conflictProjectName: string | null;
   onDismissNotice: () => void;
   onKeepMine: () => Promise<void>;
