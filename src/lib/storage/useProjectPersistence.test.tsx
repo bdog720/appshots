@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "../../types";
+import { STORAGE_KEY } from "../useLocalStorage";
+import { BrowserStorage } from "./browser-storage";
+import { createMemoryStorage } from "./memory-storage";
 import { StorageError, type ProjectStorage, type SaveResult } from "./types";
 import { useProjectPersistence } from "./useProjectPersistence";
 
@@ -307,6 +310,91 @@ describe("useProjectPersistence", () => {
     expect(saveProject).toHaveBeenCalledTimes(2);
     expect(saveProject.mock.calls[1][0]).toBe(restored);
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+
+    // The force is cleared once its save lands, so nothing is re-sent forever.
+    await act(async () => {
+      await hook.result.current.retry();
+    });
+    expect(saveProject).toHaveBeenCalledTimes(2);
+  });
+
+  it("still deletes a project removed after markSaved forced a re-send", async () => {
+    const { hook, saveProject, deleteProject } = setup("server");
+    const release = holdNextSave(saveProject);
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+
+    const restored = project("a", "restored");
+    hook.rerender({ projects: [restored, initial[1]], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(restored);
+    });
+
+    // The user deletes the project before the forced re-send goes out.
+    hook.rerender({ projects: [initial[1]], activeProjectId: "b" });
+    await release({ ok: true });
+    await flushTimers();
+
+    expect(deleteProject).toHaveBeenCalledWith("a");
+  });
+
+  it("removes a deleted project from browser storage after a forced re-send", async () => {
+    const memory = createMemoryStorage();
+    const inner = new BrowserStorage(memory);
+    const pa = project("a");
+    const pb = project("b");
+    await inner.saveProject(pa);
+    await inner.saveProject(pb);
+    await inner.saveMeta("a", ["a", "b"]);
+
+    // A real BrowserStorage behind a gate, so a save can be held mid-flight.
+    let openGate!: () => void;
+    const gate = new Promise<void>((resolve) => (openGate = resolve));
+    const storage = {
+      mode: "browser",
+      load: () => inner.load(),
+      saveProject: async (p: Project) => {
+        await gate;
+        return inner.saveProject(p);
+      },
+      deleteProject: (id: string) => inner.deleteProject(id),
+      saveMeta: (active: string, order: string[]) => inner.saveMeta(active, order),
+      resetAll: () => inner.resetAll(),
+    } as unknown as ProjectStorage;
+
+    const hook = renderHook(
+      ({ projects, activeProjectId }: { projects: Project[]; activeProjectId: string }) =>
+        useProjectPersistence({
+          storage,
+          projects,
+          activeProjectId,
+          initialProjects: [pa, pb],
+          initialActiveProjectId: "a",
+          now: () => 123,
+        }),
+      { initialProps: { projects: [pa, pb], activeProjectId: "a" } },
+    );
+
+    hook.rerender({ projects: [project("a", "mine"), pb], activeProjectId: "a" });
+    await flushTimers();
+
+    const restored = project("a", "restored");
+    hook.rerender({ projects: [restored, pb], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(restored);
+    });
+
+    hook.rerender({ projects: [pb], activeProjectId: "b" });
+    await act(async () => {
+      openGate();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await flushTimers();
+
+    const persisted = JSON.parse(memory.getItem(STORAGE_KEY) ?? "{}") as {
+      projects: Array<{ id: string }>;
+    };
+    expect(persisted.projects.map((p) => p.id)).toEqual(["b"]);
   });
 
   it("guards page unload", async () => {

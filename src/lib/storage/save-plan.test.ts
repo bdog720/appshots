@@ -34,6 +34,25 @@ describe("planSave", () => {
     expect(plan.meta).toBe(true);
   });
 
+  it("forces listed ids into save even when their content matches the baseline", () => {
+    const a = project("a");
+    const b = project("b");
+    const previous = snapshotOf([a, b], "a");
+    const plan = planSave(previous, [a, b], "a", new Set(["a"]));
+    expect(plan.save.map((p) => p.id)).toEqual(["a"]);
+    expect(plan.remove).toEqual([]);
+    expect(plan.meta).toBe(false);
+  });
+
+  it("still removes a deleted project whose id is forced", () => {
+    const a = project("a");
+    const b = project("b");
+    const previous = snapshotOf([a, b], "a");
+    const plan = planSave(previous, [b], "b", new Set(["a"]));
+    expect(plan.save).toEqual([]);
+    expect(plan.remove).toEqual(["a"]);
+  });
+
   it("flags meta when the active project or order changes", () => {
     const a = project("a");
     const b = project("b");

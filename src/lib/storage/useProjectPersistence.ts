@@ -60,6 +60,12 @@ export function useProjectPersistence(options: {
   const conflictRef = useRef<Extract<SaveStatus, { kind: "conflict" }> | null>(null);
   /** Bumped whenever the baseline is resolved out from under a running pass. */
   const generationRef = useRef(0);
+  /**
+   * Ids to re-send even though the baseline matches. Kept apart from the
+   * baseline because that map also answers "does this project still exist?":
+   * dropping a key to force a save would drop it from delete detection too.
+   */
+  const forceSaveRef = useRef<Set<string>>(new Set());
   const [status, setStatus] = useState<SaveStatus>({ kind: "saved", at: null });
 
   const clearTimer = () => {
@@ -70,7 +76,14 @@ export function useProjectPersistence(options: {
   };
 
   const hasChanges = () =>
-    !isEmptyPlan(planSave(baseline(), latestRef.current.projects, latestRef.current.activeProjectId));
+    !isEmptyPlan(
+      planSave(
+        baseline(),
+        latestRef.current.projects,
+        latestRef.current.activeProjectId,
+        forceSaveRef.current,
+      ),
+    );
 
   /**
    * One storage pass at a time. The handshake: `task()` runs synchronously to
@@ -103,7 +116,11 @@ export function useProjectPersistence(options: {
       try {
         const saved = baseline();
         const { projects: current, activeProjectId: active } = latestRef.current;
-        const plan = planSave(saved, current, active);
+        // A force left over for a project that has since been deleted would
+        // otherwise keep the editor dirty forever.
+        const present = new Set(current.map((project) => project.id));
+        for (const id of forceSaveRef.current) if (!present.has(id)) forceSaveRef.current.delete(id);
+        const plan = planSave(saved, current, active, forceSaveRef.current);
         const forcePin = pinActive && isServerStorage(storage);
         if (isEmptyPlan(plan) && !forcePin) {
           setStatus((previous) => (previous.kind === "saved" ? previous : { kind: "saved", at: now() }));
@@ -129,6 +146,7 @@ export function useProjectPersistence(options: {
           }
           // Baseline advances only for the projects that actually saved.
           saved.projects.set(project.id, project);
+          forceSaveRef.current.delete(project.id);
         }
         for (const id of plan.remove) {
           await storage.deleteProject(id);
@@ -172,7 +190,7 @@ export function useProjectPersistence(options: {
    */
   const writeBeforeTeardown = (): boolean => {
     const { projects: current, activeProjectId: active } = latestRef.current;
-    const plan = planSave(baseline(), current, active);
+    const plan = planSave(baseline(), current, active, forceSaveRef.current);
     if (isEmptyPlan(plan)) return false;
     if (isServerStorage(storage)) {
       // The keepalive API takes whole projects only, so removals and order
@@ -270,15 +288,13 @@ export function useProjectPersistence(options: {
     (project: Project) => {
       // Only this project's entry: a sibling whose save never went out has to
       // stay plannable. activeProjectId/order are untouched for the same reason.
+      baseline().projects.set(project.id, project);
       if (inFlightRef.current) {
         // A save of the pre-load copy is in flight, and the generation bump
         // below stops it advancing the baseline — so storage may end up holding
-        // that copy as its last write. Leave this project out of the baseline so
-        // the flush re-sends the editor's copy, rather than reporting "Saved"
-        // over content that no longer matches the editor.
-        baseline().projects.delete(project.id);
-      } else {
-        baseline().projects.set(project.id, project);
+        // that copy as its last write. Force one re-send of the editor's copy
+        // rather than reporting "Saved" over content that no longer matches.
+        forceSaveRef.current.add(project.id);
       }
       conflictRef.current = null;
       generationRef.current += 1;

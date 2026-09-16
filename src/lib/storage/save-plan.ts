@@ -37,8 +37,18 @@ export const sameProjectContent = (a: Project, b: Project): boolean => {
   return true;
 };
 
-export const planSave = (previous: SavedSnapshot, projects: Project[], activeProjectId: string): SavePlan => {
+export const planSave = (
+  previous: SavedSnapshot,
+  projects: Project[],
+  activeProjectId: string,
+  /** Ids to save even when their content matches the baseline. */
+  forceSave?: ReadonlySet<string>,
+): SavePlan => {
   const save = projects.filter((project) => {
+    // The baseline can be up to date while storage is not — see markSaved's
+    // in-flight branch. Only `save` is affected: `remove` and `meta` still come
+    // from the baseline alone.
+    if (forceSave?.has(project.id)) return true;
     const saved = previous.projects.get(project.id);
     return !saved || !sameProjectContent(saved, project);
   });
