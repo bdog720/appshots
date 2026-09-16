@@ -75,6 +75,18 @@ export function useProjectPersistence(options: {
     }
   };
 
+  /**
+   * Writes the save status unless a conflict is live. "Changed elsewhere" is
+   * the one thing waiting on the user, and it's what renders the banner
+   * carrying the only way to resolve it — so a sibling project's
+   * Saving…/Saved/Couldn't save must not push it off screen. Siblings still
+   * save; only the display is pinned.
+   */
+  const showStatus = useCallback((next: SaveStatus | ((previous: SaveStatus) => SaveStatus)) => {
+    // Same object every time, so React bails out instead of re-rendering.
+    setStatus(conflictRef.current ?? next);
+  }, []);
+
   const hasChanges = () =>
     !isEmptyPlan(
       planSave(
@@ -105,7 +117,6 @@ export function useProjectPersistence(options: {
 
   const runFlush = useCallback(
     async (pinActive: boolean): Promise<void> => {
-      if (conflictRef.current) return;
       // A pass the user has since resolved (markSaved/keepMine) must not write
       // status, re-open a settled conflict, or advance a baseline it no longer owns.
       const generation = generationRef.current;
@@ -121,18 +132,27 @@ export function useProjectPersistence(options: {
         const present = new Set(current.map((project) => project.id));
         for (const id of forceSaveRef.current) if (!present.has(id)) forceSaveRef.current.delete(id);
         const plan = planSave(saved, current, active, forceSaveRef.current);
+        // A live conflict holds back that one project, not the editor: its
+        // siblings keep saving. Stopping them leaves their edits in this tab
+        // only, with "Changed elsewhere" — not "Unsaved changes" — on screen,
+        // so nothing says they're at risk.
+        const held = conflictRef.current?.projectId;
+        const toSave = plan.save.filter((project) => project.id !== held);
+        // Deleting the held project would discard the other side's version
+        // without asking, which is what the banner exists to prevent. It goes
+        // out once the user resolves the conflict.
+        const toRemove = plan.remove.filter((id) => id !== held);
         const forcePin = pinActive && isServerStorage(storage);
-        if (isEmptyPlan(plan) && !forcePin) {
-          setStatus((previous) => (previous.kind === "saved" ? previous : { kind: "saved", at: now() }));
+        const activeProject = current.find((project) => project.id === active);
+        if (forcePin && activeProject && active !== held && !toSave.some((project) => project.id === active)) {
+          toSave.push(activeProject);
+        }
+        if (toSave.length === 0 && toRemove.length === 0 && !plan.meta) {
+          showStatus((previous) => (previous.kind === "saved" ? previous : { kind: "saved", at: now() }));
           return;
         }
 
-        setStatus({ kind: "saving" });
-        const toSave = [...plan.save];
-        const activeProject = current.find((project) => project.id === active);
-        if (forcePin && activeProject && !toSave.some((project) => project.id === active)) {
-          toSave.push(activeProject);
-        }
+        showStatus({ kind: "saving" });
         for (const project of toSave) {
           const result = await storage.saveProject(
             project,
@@ -140,15 +160,18 @@ export function useProjectPersistence(options: {
           );
           if (superseded()) return;
           if (!result.ok) {
-            conflictRef.current = { kind: "conflict", projectId: project.id, ...result.conflict };
+            // Only one conflict can be shown at a time, so the first one keeps
+            // the banner — and the pass carries on, so a third project isn't
+            // held up by either of them.
+            conflictRef.current ??= { kind: "conflict", projectId: project.id, ...result.conflict };
             setStatus(conflictRef.current);
-            return;
+            continue;
           }
           // Baseline advances only for the projects that actually saved.
           saved.projects.set(project.id, project);
           forceSaveRef.current.delete(project.id);
         }
-        for (const id of plan.remove) {
+        for (const id of toRemove) {
           await storage.deleteProject(id);
           if (superseded()) return;
           saved.projects.delete(id);
@@ -160,13 +183,13 @@ export function useProjectPersistence(options: {
           saved.activeProjectId = active;
           saved.order = order;
         }
-        setStatus(hasChanges() ? { kind: "dirty" } : { kind: "saved", at: now() });
+        showStatus(hasChanges() ? { kind: "dirty" } : { kind: "saved", at: now() });
       } catch (error) {
         if (superseded()) return;
-        setStatus({ kind: "error", message: messageOf(error) });
+        showStatus({ kind: "error", message: messageOf(error) });
       }
     },
-    [storage, now],
+    [storage, now, showStatus],
   );
 
   const flush = useCallback(
@@ -228,7 +251,6 @@ export function useProjectPersistence(options: {
 
   // Autosave: mark dirty right away, save after a quiet period.
   useEffect(() => {
-    if (conflictRef.current) return;
     if (!hasChanges()) {
       // Nothing is pending. Usually that means markSaved replaced the baseline
       // before React re-rendered with the loaded copy, so it had to report
@@ -237,11 +259,11 @@ export function useProjectPersistence(options: {
       // than asking every caller to land its state update first.
       // No `at`: the content matches storage, but no write happened in this
       // tick, so this must read "Saved" and not "Saved · just now".
-      setStatus((previous) => (previous.kind === "dirty" ? { kind: "saved", at: null } : previous));
+      showStatus((previous) => (previous.kind === "dirty" ? { kind: "saved", at: null } : previous));
       return;
     }
     // Return the same object when already dirty/saving so this doesn't re-render in a loop.
-    setStatus((previous) => (previous.kind === "saving" || previous.kind === "dirty" ? previous : { kind: "dirty" }));
+    showStatus((previous) => (previous.kind === "saving" || previous.kind === "dirty" ? previous : { kind: "dirty" }));
     const scheduled = scheduleFlush();
     // Only this effect's own timer: markSaved may have armed a later one, and
     // cancelling that would strand the re-send it scheduled.

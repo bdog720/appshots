@@ -188,11 +188,32 @@ export class ServerStorage implements ServerProjectStorage {
       activeProjectId: string | null;
       projects: Array<{ id: string }>;
     };
-    const loaded = await Promise.all(state.projects.map(({ id }) => this.reloadProject(id)));
+    const loaded = await Promise.all(state.projects.map(({ id }) => this.loadOneProject(id)));
     return {
       projects: loaded.filter((project): project is Project => project !== null),
       activeProjectId: state.activeProjectId,
     };
+  }
+
+  /**
+   * One project's read as part of load(). A rejection from load() means "the
+   * container won't hand over its state", which sends the whole session to
+   * browser storage — far too much for one project blipping, so retry once and
+   * then skip it exactly as a 404 does. Skipping is safe: the project's file is
+   * untouched, it never enters this session's saved baseline (so nothing
+   * deletes it), and it's back on the next load.
+   */
+  private async loadOneProject(id: string): Promise<Project | null> {
+    try {
+      return await this.reloadProject(id);
+    } catch {
+      // A transient failure — one more try before giving up on it.
+    }
+    try {
+      return await this.reloadProject(id);
+    } catch {
+      return null;
+    }
   }
 
   async saveProject(project: Project, options: SaveOptions = {}): Promise<SaveResult> {

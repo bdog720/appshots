@@ -223,7 +223,6 @@ interface EditorContextType {
   /** Non-null while an export is running: how many screenshots are done / total. */
   exportProgress: { rendered: number; total: number } | null;
   getBackgroundStyle: (screenshot: Screenshot) => string;
-  resetEditor: () => void;
 
   // Undo / redo over editor content
   undo: () => void;
@@ -916,10 +915,21 @@ export const EditorProvider = ({
   const loadTheirVersion = async () => {
     const status = persistence.status;
     if (status.kind !== "conflict" || !isServerStorage(storage)) return;
+    // Read their copy first: if the project is gone server-side there is no
+    // version to load, and pinning ours into a history that no longer exists
+    // would fail with a confusing message before we could say so.
+    const theirs = await storage.reloadProject(status.projectId);
+    if (!theirs) {
+      // Thrown, not swallowed: the banner shows this next to its buttons.
+      // Returning quietly left both buttons looking live with nothing having
+      // happened, and the conflict still on screen.
+      throw new Error(
+        "That project is no longer in the container — choose “Keep mine” to save your copy back.",
+      );
+    }
     const mine = projects.find((p) => p.id === status.projectId);
     if (mine) await storage.addHistory(mine, "Discarded local changes");
-    const theirs = await storage.reloadProject(status.projectId);
-    if (theirs) replaceProjectFromStorage(theirs);
+    replaceProjectFromStorage(theirs);
   };
 
   const listProjectHistory = async (): Promise<HistoryVersion[]> =>
@@ -1487,32 +1497,6 @@ export const EditorProvider = ({
     }
   };
 
-  /**
-   * Resets the editor to default state and clears saved projects
-   */
-  const resetEditor = () => {
-    void storage.resetAll().catch(() => undefined);
-    const defaultProject = createDefaultProject();
-    setProjects([defaultProject]);
-    setActiveProjectId(defaultProject.id);
-    setSelectedDeviceIdState(defaultProject.selectedDeviceId);
-    setSelectedColorIdState(defaultProject.selectedColorId);
-    setExportSizeIdState(defaultProject.exportSizeId);
-    setScreenshotsState(defaultProject.screenshots);
-    setActiveScreenshotIdState(defaultProject.activeScreenshotId);
-    setTextDefaultsState(defaultProject.textDefaults);
-    setBackgroundDefaultsState(backgroundDefaultsOf(defaultProject));
-    setSavedColorsState(defaultProject.savedColors);
-    setSelectedElement(null);
-    setIsStarModalOpen(false);
-    resetHistory({
-      screenshots: defaultProject.screenshots,
-      textDefaults: defaultProject.textDefaults,
-      backgroundDefaults: backgroundDefaultsOf(defaultProject),
-      savedColors: defaultProject.savedColors,
-    });
-  };
-
   return (
     <EditorContext.Provider
       value={{
@@ -1612,7 +1596,6 @@ export const EditorProvider = ({
         handleExport,
         exportProgress,
         getBackgroundStyle,
-        resetEditor,
         undo,
         redo,
         canUndo,

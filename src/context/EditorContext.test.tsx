@@ -189,6 +189,24 @@ describe("EditorProvider storage wiring", () => {
     expect(saveProject).toHaveBeenCalledTimes(1);
   });
 
+  it("reports a failure when their version is gone from the container", async () => {
+    // Returning quietly left the banner up with both buttons looking live and
+    // nothing having happened — the user can't tell the click did anything.
+    const { saveProject, reloadProject, addHistory } = renderEditor({ mode: "server" });
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    act(() => {
+      editor.renameProject("a", "Mine");
+    });
+    await settle();
+    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    reloadProject.mockResolvedValueOnce(null);
+    await expect(editor.loadTheirVersion()).rejects.toThrow(/no longer in the container/i);
+    // Nothing was discarded on the way: the local copy is still the user's.
+    expect(addHistory).not.toHaveBeenCalled();
+    expect(editor.activeProject.name).toBe("Mine");
+  });
+
   it("saves pending edits before restoring a version, then loads the restored copy", async () => {
     const { saveProject, restoreVersion, addHistory } = renderEditor({ mode: "server" });
     act(() => {
@@ -226,12 +244,13 @@ describe("EditorProvider storage wiring", () => {
     expect(editor.storageMode).toBe("browser");
   });
 
-  it("clears saved projects when the editor is reset", async () => {
+  it("exposes no unconfirmed reset that wipes every saved project", async () => {
+    // resetEditor deleted every project and all of their history through a
+    // fire-and-forget resetAll(), with no confirmation and errors swallowed —
+    // and nothing in the UI called it. If it ever comes back it needs both.
     const { resetAll } = renderEditor();
-    act(() => {
-      editor.resetEditor();
-    });
-    expect(resetAll).toHaveBeenCalledTimes(1);
+    expect("resetEditor" in editor).toBe(false);
+    expect(resetAll).not.toHaveBeenCalled();
   });
 
   it("keeps the replaced content in history even while a save is in flight", async () => {

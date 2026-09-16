@@ -393,7 +393,12 @@ export class FileStore {
           projectOrder: state.projectOrder.filter((projectId) => projectId !== id),
         });
       });
-      await this.collectGarbage();
+      // Best-effort: the project is already gone, so a cleanup failure must not
+      // be reported as a failed delete — the client would show a save error and
+      // abandon the rest of its flush over some unreferenced images.
+      await this.collectGarbage().catch((error: unknown) => {
+        console.warn(`[store] image cleanup after deleting ${id} failed: ${(error as Error).message}`);
+      });
     }
     return deleted;
   }

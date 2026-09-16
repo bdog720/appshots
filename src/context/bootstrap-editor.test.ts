@@ -156,4 +156,29 @@ describe("bootstrapEditor", () => {
     expect(migrate).not.toHaveBeenCalled();
     expect(result.initialState.projects).toHaveLength(1);
   });
+
+  it("keeps container storage when one project can't be read", async () => {
+    // Demoting the session here would send its edits to localStorage, where
+    // the migration flag stops them ever merging back — so the next reload
+    // shows the container's copy and this session's work vanishes.
+    const server = createFakeServer();
+    server.projects.set("ok", { revision: 1, project: legacyProject("ok") });
+    server.projects.set("broken", { revision: 1, project: legacyProject("broken") });
+    server.state.activeProjectId = "ok";
+    const storage = new ServerStorage(async (url, init) =>
+      url === "/api/projects/broken"
+        ? new Response(JSON.stringify({ error: "boom" }), { status: 500 })
+        : server.fetch(url, init),
+    );
+
+    const result = await bootstrapEditor(() => {}, {
+      resolveStorage: async () => ({ storage, notice: null }),
+      migrateBrowserProjects: async () => 0,
+      createBrowserStorage: () => new BrowserStorage(createMemoryStorage()),
+    });
+
+    expect(result.storage).toBe(storage);
+    expect(result.notice.unwritable).toBe(false);
+    expect(result.initialState.projects.map((project) => project.id)).toEqual(["ok"]);
+  });
 });

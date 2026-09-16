@@ -208,6 +208,46 @@ describe("useProjectPersistence", () => {
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
+  it("keeps autosaving other projects while one is in conflict", async () => {
+    // Otherwise every other project silently stops saving behind the banner,
+    // with the indicator reading "Changed elsewhere" rather than "Unsaved
+    // changes" — so nothing tells the user those edits are at risk.
+    const { hook, saveProject } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    const mineA = project("a", "mine A");
+    hook.rerender({ projects: [mineA, initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+    expect(saveProject).toHaveBeenCalledTimes(1);
+
+    const mineB = project("b", "mine B");
+    hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
+    await flushTimers();
+
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    expect(saveProject.mock.calls[1][0]).toBe(mineB);
+    // Only the conflicted project waits, and its banner stays up.
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+  });
+
+  it("keeps the conflict on screen when a sibling's save fails", async () => {
+    // The banner is the only way to resolve the conflict, and it renders off
+    // this status — replacing it with the sibling's error would strand the
+    // conflict with no affordance at all.
+    const { hook, saveProject } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    const mineA = project("a", "mine A");
+    hook.rerender({ projects: [mineA, initial[1]], activeProjectId: "a" });
+    await flushTimers();
+
+    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
+    hook.rerender({ projects: [mineA, project("b", "mine B")], activeProjectId: "a" });
+    await flushTimers();
+
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+  });
+
   it("keeps the conflict live when Keep mine fails", async () => {
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
@@ -275,13 +315,16 @@ describe("useProjectPersistence", () => {
 
   it("keeps a sibling's edits plannable when markSaved resolves a conflict", async () => {
     const { hook, saveProject } = setup("server");
-    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    saveProject
+      .mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } })
+      // B does go out now (see "keeps autosaving other projects while one is
+      // in conflict"), so its save has to fail for it to still be pending here.
+      .mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
     const mineA = project("a", "mine A");
     const mineB = project("b", "mine B");
     hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
     await flushTimers();
-    // A conflicted, so B never went out.
-    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(saveProject).toHaveBeenCalledTimes(2);
     expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
     const theirsA = project("a", "theirs A");
@@ -290,8 +333,10 @@ describe("useProjectPersistence", () => {
       hook.result.current.markSaved(theirsA);
     });
     await flushTimers();
-    expect(saveProject).toHaveBeenCalledTimes(2);
-    expect(saveProject.mock.calls[1][0]).toBe(mineB);
+    // markSaved rewrites one project's baseline entry, so B — whose save never
+    // landed — is still plannable and goes out.
+    expect(saveProject).toHaveBeenCalledTimes(3);
+    expect(saveProject.mock.calls[2][0]).toBe(mineB);
   });
 
   it("ignores a flush that markSaved superseded", async () => {

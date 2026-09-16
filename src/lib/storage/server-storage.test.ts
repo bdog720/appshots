@@ -19,6 +19,25 @@ const setup = () => {
   return { server, storage: new ServerStorage(server.fetch) };
 };
 
+/** A server whose reads of one project fail with a 500 the first `times` times. */
+const failingReadsOf = (
+  server: ReturnType<typeof createFakeServer>,
+  url: string,
+  times: number,
+): FetchLike => {
+  let left = times;
+  return async (input, init) => {
+    if (input === url && left > 0) {
+      left -= 1;
+      return new Response(JSON.stringify({ error: "boom" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return server.fetch(input, init);
+  };
+};
+
 describe("ServerStorage load and save", () => {
   it("loads projects and remembers their revisions", async () => {
     const { server, storage } = setup();
@@ -34,6 +53,37 @@ describe("ServerStorage load and save", () => {
 
     await storage.saveProject(project("a"));
     expect(server.calls.at(-1)?.headers["if-match"]).toBe('"3"');
+  });
+
+  it("retries a project read that blips once during a load", async () => {
+    const server = createFakeServer();
+    server.projects.set("a", { revision: 3, project: project("a") });
+    server.projects.set("b", { revision: 1, project: project("b") });
+    const storage = new ServerStorage(failingReadsOf(server, "/api/projects/b", 1));
+
+    const loaded = await storage.load();
+    expect(loaded.projects.map((p) => p.id)).toEqual(["a", "b"]);
+  });
+
+  it("skips a project it can't read instead of failing the whole load", async () => {
+    // A load that rejects tells the app the container won't hand over its
+    // state at all, which demotes the session to browser storage; one
+    // unreadable project must not do that. The file is left alone, so the
+    // project is back on the next load.
+    const server = createFakeServer();
+    server.projects.set("a", { revision: 3, project: project("a") });
+    server.projects.set("b", { revision: 1, project: project("b") });
+    const storage = new ServerStorage(failingReadsOf(server, "/api/projects/b", 99));
+
+    const loaded = await storage.load();
+    expect(loaded.projects.map((p) => p.id)).toEqual(["a"]);
+  });
+
+  it("still fails the load when the state itself can't be read", async () => {
+    const { server, storage } = setup();
+    server.projects.set("a", { revision: 3, project: project("a") });
+    server.failNext(500);
+    await expect(storage.load()).rejects.toThrow(StorageError);
   });
 
   it("creates new projects and then updates them", async () => {

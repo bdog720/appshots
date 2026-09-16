@@ -228,6 +228,20 @@ describe("FileStore projects", () => {
     expect(state.activeProjectId).toBeNull();
     expect(await store.deleteProject("p1")).toBe(false);
   });
+
+  it("reports a delete that succeeded even when image cleanup afterwards fails", async () => {
+    await store.putProject("p1", { v: 1 }, { expectedRevision: 0 });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(store, "collectGarbage").mockRejectedValueOnce(new Error("cleanup blew up"));
+
+    // The project file is already gone by the time cleanup runs, so rejecting
+    // here reports a failure for work that succeeded: the client shows a save
+    // error and abandons the rest of its flush over unreferenced images.
+    await expect(store.deleteProject("p1")).resolves.toBe(true);
+    expect(await store.getProject("p1")).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
 
 describe("FileStore state", () => {
