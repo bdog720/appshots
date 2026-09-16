@@ -186,7 +186,7 @@ export const ProjectSwitcher = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const newProjectInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -197,12 +197,12 @@ export const ProjectSwitcher = () => {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-importing the same file
     if (!file) return;
-    setImportError(null);
+    setActionError(null);
     try {
       await importProject(file);
       setIsOpen(false);
     } catch (err) {
-      setImportError(
+      setActionError(
         err instanceof Error ? err.message : "Couldn't import that file.",
       );
     }
@@ -291,7 +291,16 @@ export const ProjectSwitcher = () => {
                 }}
                 onRename={(name) => renameProject(project.id, name)}
                 onDelete={() => deleteProject(project.id)}
-                onExport={() => exportProject(project.id)}
+                onExport={() => {
+                  // Embedding container images can fail (server gone); say so
+                  // rather than leaving the click with no result.
+                  setActionError(null);
+                  void exportProject(project.id).catch((err: unknown) => {
+                    setActionError(
+                      err instanceof Error ? err.message : "Couldn't export that project.",
+                    );
+                  });
+                }}
                 canDelete={projects.length > 1}
               />
             ))}
@@ -366,8 +375,8 @@ export const ProjectSwitcher = () => {
               <Bot className="w-4 h-4" />
               Import from agent…
             </button>
-            {importError && (
-              <p className="px-3 pb-2 text-xs text-red-400">{importError}</p>
+            {actionError && (
+              <p className="px-3 pb-2 text-xs text-red-400">{actionError}</p>
             )}
           </div>
         </div>

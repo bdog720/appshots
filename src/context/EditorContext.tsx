@@ -7,6 +7,7 @@ import React, {
   useCallback,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import type {
   DeviceSpec,
   DeviceColor,
@@ -37,10 +38,15 @@ import {
   getDeviceSpecById,
 } from "../lib/device-instances";
 import {
-  loadPersistedState,
-  useEditorPersistence,
-  clearPersistedState,
-} from "../lib/useLocalStorage";
+  isServerStorage,
+  type HistoryVersion,
+  type ProjectStorage,
+  type StorageMode,
+} from "../lib/storage/types";
+import {
+  useProjectPersistence,
+  type SaveStatus,
+} from "../lib/storage/useProjectPersistence";
 import type { TextSettings, TextSettingKey } from "../lib/text-settings";
 import {
   DEFAULT_TEXT_SETTINGS,
@@ -88,7 +94,7 @@ interface EditorContextType {
   deleteProject: (id: string) => void;
   switchProject: (id: string) => void;
   /** Download a project as a JSON backup file */
-  exportProject: (id: string) => void;
+  exportProject: (id: string) => Promise<void>;
   /** Import a project from a JSON backup file (throws on invalid input) */
   importProject: (file: File) => Promise<void>;
   /** Apply a compiled agent import as a new project, or in place of the active one (undoable) */
@@ -106,6 +112,23 @@ interface EditorContextType {
   setIsShortcutsOpen: (open: boolean) => void;
   isAgentImportOpen: boolean;
   setIsAgentImportOpen: (open: boolean) => void;
+
+  /** Where projects are saved this session */
+  storageMode: StorageMode;
+  saveStatus: SaveStatus;
+  /** Save pending edits now; pins a history version in container mode. */
+  saveNow: () => Promise<void>;
+  /** Try a failed save again. A no-op while a conflict is pending. */
+  retrySave: () => Promise<void>;
+  keepMyVersion: () => Promise<void>;
+  loadTheirVersion: () => Promise<void>;
+  listProjectHistory: () => Promise<HistoryVersion[]>;
+  restoreProjectVersion: (version: string) => Promise<void>;
+  isHistoryOpen: boolean;
+  setIsHistoryOpen: (open: boolean) => void;
+  startupNotice: StartupNotice;
+  dismissStartupNotice: () => void;
+
   selectedDeviceId: string;
   setSelectedDeviceId: (id: string) => void;
   selectedColorId: string;
@@ -382,6 +405,15 @@ export const normalizeProject = (project: Project & LegacyProjectFields): Projec
   };
 };
 
+/**
+ * A project's background default — never a fresh copy. The save planner
+ * compares a project's fields by reference, so minting a new object for an
+ * untouched project would make it look edited and re-save it on every load or
+ * project switch. The settings object is only ever replaced, never mutated.
+ */
+const backgroundDefaultsOf = (project: Project): BackgroundSettings =>
+  project.backgroundDefaults ?? DEFAULT_BACKGROUND_SETTINGS;
+
 // Create a default project
 const createDefaultProject = (name: string = "My Project"): Project => {
   const defaultDeviceId = devices[0].id;
@@ -403,32 +435,50 @@ const createDefaultProject = (name: string = "My Project"): Project => {
   };
 };
 
-// Load persisted state once on module load
-const persistedState = loadPersistedState();
+export interface StartupNotice {
+  /** The container's storage isn't writable, so this session saves to the browser. */
+  unwritable: boolean;
+  /** Projects moved from this browser into the container on this startup. */
+  migratedCount: number;
+  /**
+   * Set when moving this browser's projects into the container failed. The
+   * browser copy is untouched, so the next load tries again.
+   */
+  migrationError?: string;
+}
 
-// Initialize projects from persisted state or create default
-const getInitialProjects = (): Project[] => {
-  if (persistedState?.projects && persistedState.projects.length > 0) {
-    return persistedState.projects.map(normalizeProject);
-  }
-  return [createDefaultProject()];
+export interface InitialEditorState {
+  projects: Project[];
+  activeProjectId: string;
+}
+
+export const prepareInitialState = (loaded: {
+  projects: Project[];
+  activeProjectId: string | null;
+}): InitialEditorState => {
+  const projects =
+    loaded.projects.length > 0 ? loaded.projects.map(normalizeProject) : [createDefaultProject()];
+  const activeProjectId =
+    loaded.activeProjectId && projects.some((p) => p.id === loaded.activeProjectId)
+      ? loaded.activeProjectId
+      : projects[0].id;
+  return { projects, activeProjectId };
 };
 
-const getInitialActiveProjectId = (projects: Project[]): string => {
-  if (persistedState?.activeProjectId) {
-    // Verify the project exists
-    const exists = projects.some((p) => p.id === persistedState.activeProjectId);
-    if (exists) return persistedState.activeProjectId;
-  }
-  return projects[0]?.id || generateId();
-};
-
-export const EditorProvider = ({ children }: { children: ReactNode }) => {
+export const EditorProvider = ({
+  children,
+  storage,
+  initialState,
+  startupNotice,
+}: {
+  children: ReactNode;
+  storage: ProjectStorage;
+  initialState: InitialEditorState;
+  startupNotice: StartupNotice;
+}) => {
   // Project state
-  const [projects, setProjects] = useState<Project[]>(getInitialProjects);
-  const [activeProjectId, setActiveProjectId] = useState(() =>
-    getInitialActiveProjectId(projects),
-  );
+  const [projects, setProjects] = useState<Project[]>(initialState.projects);
+  const [activeProjectId, setActiveProjectId] = useState(initialState.activeProjectId);
 
   // Get active project
   const activeProject =
@@ -442,6 +492,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [isStarModalOpen, setIsStarModalOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isAgentImportOpen, setIsAgentImportOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [notice, setNotice] = useState<StartupNotice>(startupNotice);
   const [selectedDeviceId, setSelectedDeviceIdState] = useState(
     activeProject.selectedDeviceId,
   );
@@ -461,9 +513,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     activeProject.textDefaults,
   );
   const [backgroundDefaults, setBackgroundDefaultsState] =
-    useState<BackgroundSettings>(
-      activeProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
-    );
+    useState<BackgroundSettings>(backgroundDefaultsOf(activeProject));
   const [savedColors, setSavedColorsState] = useState<string[]>(
     activeProject.savedColors,
   );
@@ -532,10 +582,13 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     updateProjectState();
   }, [updateProjectState]);
 
-  // Auto-save projects to localStorage
-  useEditorPersistence({
+  // Save through the resolved storage (container or browser).
+  const persistence = useProjectPersistence({
+    storage,
     projects,
     activeProjectId,
+    initialProjects: initialState.projects,
+    initialActiveProjectId: initialState.activeProjectId,
   });
 
   // Undo / redo over the active project's content. Rapid edits (drags, slider
@@ -733,15 +786,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
     setBackgroundDefaultsState(
-      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      backgroundDefaultsOf(project),
     );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
     resetHistory({
       screenshots: project.screenshots,
       textDefaults: project.textDefaults,
-      backgroundDefaults:
-        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      backgroundDefaults: backgroundDefaultsOf(project),
       savedColors: project.savedColors,
     });
   };
@@ -758,30 +810,33 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setActiveScreenshotIdState(project.activeScreenshotId);
     setTextDefaultsState(project.textDefaults);
     setBackgroundDefaultsState(
-      project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      backgroundDefaultsOf(project),
     );
     setSavedColorsState(project.savedColors);
     setSelectedElement(null);
     resetHistory({
       screenshots: project.screenshots,
       textDefaults: project.textDefaults,
-      backgroundDefaults:
-        project.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      backgroundDefaults: backgroundDefaultsOf(project),
       savedColors: project.savedColors,
     });
   };
 
-  const exportProject = (id: string) => {
+  const exportProject = async (id: string) => {
     const project = projects.find((p) => p.id === id);
     if (!project) return;
 
-    const blob = new Blob([serializeProject(project)], {
+    // Container projects reference /api/images URLs; embed them so the backup stands alone.
+    const portable = isServerStorage(storage)
+      ? await storage.inlineProjectImages(project)
+      : project;
+    const blob = new Blob([serializeProject(portable)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = suggestProjectFilename(project.name);
+    anchor.download = suggestProjectFilename(portable.name);
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -812,6 +867,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   // (Export size and selected device are not part of undo history.)
   const applyAgentImport = (compiled: Project, mode: AgentImportMode) => {
     const normalized = normalizeProject(compiled);
+    // Container mode: pin the current content in history before replacing it.
+    // saveNow() reads the current project synchronously, before the state below changes.
+    if (mode === "replace" && isServerStorage(storage)) {
+      void persistence.saveNow();
+    }
     if (mode === "new") {
       setProjects((prev) => [...prev, normalized]);
       activateProject(normalized);
@@ -825,11 +885,43 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(replaced.screenshots);
     setActiveScreenshotIdState(replaced.activeScreenshotId);
     setTextDefaultsState(replaced.textDefaults);
-    setBackgroundDefaultsState(
-      replaced.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
-    );
+    setBackgroundDefaultsState(backgroundDefaultsOf(replaced));
     setSavedColorsState(replaced.savedColors);
     setSelectedElement(null);
+  };
+
+  // Put a project loaded from storage back into the workspace as the saved copy.
+  const replaceProjectFromStorage = (loaded: Project) => {
+    const normalized = normalizeProject(loaded);
+    // Applied synchronously so markSaved below sees the loaded copy as the
+    // editor's current state. Marking first would leave the editor reading
+    // "Unsaved changes" against a project it had just marked saved.
+    flushSync(() => {
+      setProjects((prev) => prev.map((p) => (p.id === normalized.id ? normalized : p)));
+      if (normalized.id === activeProjectId) activateProject(normalized);
+    });
+    // Per-project: a sibling whose save never went out must stay plannable.
+    persistence.markSaved(normalized);
+  };
+
+  // Conflict resolution: take the copy storage has, keeping ours in history.
+  const loadTheirVersion = async () => {
+    const status = persistence.status;
+    if (status.kind !== "conflict" || !isServerStorage(storage)) return;
+    const mine = projects.find((p) => p.id === status.projectId);
+    if (mine) await storage.addHistory(mine, "Discarded local changes");
+    const theirs = await storage.reloadProject(status.projectId);
+    if (theirs) replaceProjectFromStorage(theirs);
+  };
+
+  const listProjectHistory = async (): Promise<HistoryVersion[]> =>
+    isServerStorage(storage) ? storage.listHistory(activeProjectId) : [];
+
+  const restoreProjectVersion = async (version: string) => {
+    if (!isServerStorage(storage)) return;
+    await persistence.retry(); // save pending edits so the restore pins them
+    const restored = await storage.restoreVersion(activeProjectId, version);
+    replaceProjectFromStorage(restored);
   };
 
   const selectedDevice =
@@ -1367,10 +1459,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /**
-   * Resets the editor to default state and clears localStorage
+   * Resets the editor to default state and clears saved projects
    */
   const resetEditor = () => {
-    clearPersistedState();
+    void storage.resetAll().catch(() => undefined);
     const defaultProject = createDefaultProject();
     setProjects([defaultProject]);
     setActiveProjectId(defaultProject.id);
@@ -1380,17 +1472,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotsState(defaultProject.screenshots);
     setActiveScreenshotIdState(defaultProject.activeScreenshotId);
     setTextDefaultsState(defaultProject.textDefaults);
-    setBackgroundDefaultsState(
-      defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
-    );
+    setBackgroundDefaultsState(backgroundDefaultsOf(defaultProject));
     setSavedColorsState(defaultProject.savedColors);
     setSelectedElement(null);
     setIsStarModalOpen(false);
     resetHistory({
       screenshots: defaultProject.screenshots,
       textDefaults: defaultProject.textDefaults,
-      backgroundDefaults:
-        defaultProject.backgroundDefaults ?? { ...DEFAULT_BACKGROUND_SETTINGS },
+      backgroundDefaults: backgroundDefaultsOf(defaultProject),
       savedColors: defaultProject.savedColors,
     });
   };
@@ -1420,6 +1509,18 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setIsShortcutsOpen,
         isAgentImportOpen,
         setIsAgentImportOpen,
+        storageMode: storage.mode,
+        saveStatus: persistence.status,
+        saveNow: persistence.saveNow,
+        retrySave: persistence.retry,
+        keepMyVersion: persistence.keepMine,
+        loadTheirVersion,
+        listProjectHistory,
+        restoreProjectVersion,
+        isHistoryOpen,
+        setIsHistoryOpen,
+        startupNotice: notice,
+        dismissStartupNotice: () => setNotice({ unwritable: false, migratedCount: 0 }),
         selectedDeviceId,
         setSelectedDeviceId,
         selectedColorId,

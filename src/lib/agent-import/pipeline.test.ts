@@ -18,6 +18,15 @@ const options = (readImage = stubReadImage(), existingStorageChars = 0) => {
 };
 
 describe("runAgentImport", () => {
+  it("skips the storage warning when projects are stored in the container", async () => {
+    const result = await runAgentImport(
+      [manifest([{ image: "01.png", headline: "Hi" }]), png("01.png")],
+      { ...options(stubReadImage()), existingStorageChars: null },
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.storageWarning).toBeNull();
+  });
+
   it("imports a valid bundle", async () => {
     const result = await runAgentImport(
       [manifest([{ image: "01.png", headline: "Hi" }]), png("01.png")],

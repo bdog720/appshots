@@ -1,0 +1,228 @@
+import { act, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Project } from "../types";
+import type { ProjectStorage, SaveResult } from "../lib/storage/types";
+import { EditorProvider, prepareInitialState, useEditor } from "./EditorContext";
+
+/** A project shaped like one persisted before global defaults existed. */
+const legacyProject = (id: string, name = id) =>
+  ({
+    id,
+    name,
+    createdAt: 1,
+    updatedAt: 1,
+    screenshots: [{ id: `${id}-s`, headline: `${id} headline` }],
+  }) as unknown as Project;
+
+const createStorage = (mode: "browser" | "server") => {
+  const saveProject = vi.fn(
+    async (_project: Project, _options?: unknown): Promise<SaveResult> => ({ ok: true }),
+  );
+  const deleteProject = vi.fn(async (_id: string) => {});
+  const saveMeta = vi.fn(async (_active: string, _order: string[]) => {});
+  const resetAll = vi.fn(async () => {});
+  const reloadProject = vi.fn(async (_id: string): Promise<Project | null> => null);
+  const restoreVersion = vi.fn(async (_id: string, _version: string): Promise<Project> => {
+    throw new Error("not stubbed");
+  });
+  const addHistory = vi.fn(async (_project: Project, _label: string) => {});
+  const listHistory = vi.fn(async (_id: string) => []);
+  const inlineProjectImages = vi.fn(async (project: Project) => project);
+  const storage = {
+    mode,
+    load: vi.fn(),
+    saveProject,
+    deleteProject,
+    saveMeta,
+    resetAll,
+    reloadProject,
+    restoreVersion,
+    addHistory,
+    listHistory,
+    inlineProjectImages,
+    saveProjectOnUnload: vi.fn(() => true),
+  } as unknown as ProjectStorage;
+  return {
+    storage,
+    saveProject,
+    deleteProject,
+    saveMeta,
+    resetAll,
+    reloadProject,
+    restoreVersion,
+    addHistory,
+    listHistory,
+    inlineProjectImages,
+  };
+};
+
+let editor: ReturnType<typeof useEditor>;
+
+const Probe = () => {
+  editor = useEditor();
+  return <div>{editor.activeScreenshot.headline}</div>;
+};
+
+const renderEditor = (
+  options: {
+    mode?: "browser" | "server";
+    projects?: Project[];
+    activeProjectId?: string | null;
+  } = {},
+) => {
+  const mocks = createStorage(options.mode ?? "browser");
+  const initialState = prepareInitialState({
+    projects: options.projects ?? [legacyProject("a"), legacyProject("b")],
+    activeProjectId: options.activeProjectId ?? "a",
+  });
+  render(
+    <EditorProvider
+      storage={mocks.storage}
+      initialState={initialState}
+      startupNotice={{ unwritable: false, migratedCount: 0 }}
+    >
+      <Probe />
+    </EditorProvider>,
+  );
+  return { ...mocks, initialState };
+};
+
+const settle = async (ms = 1500) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+};
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("EditorProvider storage wiring", () => {
+  it("writes nothing when a loaded project is only rendered", async () => {
+    const { saveProject, saveMeta, deleteProject } = renderEditor();
+    await settle();
+    expect(saveProject).not.toHaveBeenCalled();
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(deleteProject).not.toHaveBeenCalled();
+    expect(editor.saveStatus).toEqual({ kind: "saved", at: null });
+  });
+
+  it("autosaves only the project that changed", async () => {
+    const { saveProject } = renderEditor();
+    act(() => {
+      editor.renameProject("a", "Renamed");
+    });
+    await settle();
+    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(saveProject.mock.calls[0][0].name).toBe("Renamed");
+  });
+
+  it("switching projects saves the new active id without re-saving either project", async () => {
+    const { saveProject, saveMeta } = renderEditor();
+    act(() => {
+      editor.switchProject("b");
+    });
+    await settle();
+    expect(saveMeta).toHaveBeenCalledWith("b", ["a", "b"]);
+    expect(saveProject).not.toHaveBeenCalled();
+  });
+
+  it("embeds container images in an exported backup", async () => {
+    const createObjectURL = vi.fn(() => "blob:stub");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const { inlineProjectImages } = renderEditor({ mode: "server" });
+
+    await act(async () => {
+      await editor.exportProject("a");
+    });
+
+    expect(inlineProjectImages).toHaveBeenCalledTimes(1);
+    expect(inlineProjectImages.mock.calls[0][0].id).toBe("a");
+    expect(createObjectURL).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it("takes their version on a conflict, keeping the local copy in history", async () => {
+    const { saveProject, reloadProject, addHistory } = renderEditor({ mode: "server" });
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    act(() => {
+      editor.renameProject("a", "Mine");
+    });
+    await settle();
+    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    const theirs = { ...editor.projects[0], name: "Theirs" };
+    reloadProject.mockResolvedValueOnce(theirs);
+    await act(async () => {
+      await editor.loadTheirVersion();
+    });
+    await settle();
+
+    expect(addHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Mine" }),
+      "Discarded local changes",
+    );
+    expect(editor.activeProject.name).toBe("Theirs");
+    // Their copy is now the saved one, so nothing is re-sent for it.
+    expect(editor.saveStatus).toEqual({ kind: "saved", at: expect.any(Number) });
+    expect(saveProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves pending edits before restoring a version, then loads the restored copy", async () => {
+    const { saveProject, restoreVersion } = renderEditor({ mode: "server" });
+    act(() => {
+      editor.renameProject("a", "Pending");
+    });
+    restoreVersion.mockImplementationOnce(async () => ({
+      ...editor.projects[0],
+      name: "Restored",
+    }));
+
+    await act(async () => {
+      await editor.restoreProjectVersion("1757900000000-3");
+    });
+    await settle();
+
+    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(saveProject.mock.calls[0][0].name).toBe("Pending");
+    expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
+    expect(editor.activeProject.name).toBe("Restored");
+    expect(editor.saveStatus).toEqual({ kind: "saved", at: expect.any(Number) });
+  });
+
+  it("has no history outside container mode", async () => {
+    const { listHistory } = renderEditor({ mode: "browser" });
+    await expect(editor.listProjectHistory()).resolves.toEqual([]);
+    expect(listHistory).not.toHaveBeenCalled();
+    expect(editor.storageMode).toBe("browser");
+  });
+
+  it("clears saved projects when the editor is reset", async () => {
+    const { resetAll } = renderEditor();
+    act(() => {
+      editor.resetEditor();
+    });
+    expect(resetAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("pins the replaced content before an agent import overwrites it", async () => {
+    const { saveProject } = renderEditor({ mode: "server" });
+    const imported = legacyProject("imported", "Imported");
+
+    await act(async () => {
+      editor.applyAgentImport(imported, "replace");
+    });
+
+    expect(saveProject).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "a", name: "a" }),
+      { pin: true, label: "Saved" },
+    );
+    expect(editor.activeScreenshot.headline).toBe("imported headline");
+  });
+});

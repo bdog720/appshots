@@ -46,7 +46,7 @@ const SECONDARY = `${BUTTON} border border-white/10 bg-input text-zinc-200 hover
 const PRIMARY = `${BUTTON} bg-violet-600 text-white hover:bg-violet-500`;
 
 export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => {
-  const { projects, applyAgentImport } = useEditor();
+  const { projects, applyAgentImport, storageMode } = useEditor();
   const modalRef = useRef<HTMLDivElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -82,7 +82,8 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
       const result = await runAgentImport(files, {
         readImage: readImageFile,
         generateId: createId,
-        existingStorageChars: JSON.stringify(projects).length,
+        // Container storage has no such budget, so don't measure or warn.
+        existingStorageChars: storageMode === "browser" ? JSON.stringify(projects).length : null,
       });
       if (!isCurrent()) return;
       setStep(
