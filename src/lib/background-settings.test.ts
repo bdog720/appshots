@@ -15,6 +15,15 @@ const solid = (color: string): BackgroundSettings => ({
   gradientPresetId: null,
 });
 
+describe("DEFAULT_BACKGROUND_SETTINGS", () => {
+  it("is frozen, because projects share the object rather than copying it", () => {
+    // EditorContext hands this exact object to a project with no background
+    // default of its own; a mutation would leak into every such project and,
+    // worse, go unnoticed by the save planner's reference compare.
+    expect(Object.isFrozen(DEFAULT_BACKGROUND_SETTINGS)).toBe(true);
+  });
+});
+
 describe("resolveGradientStops", () => {
   it("returns null for solid and image backgrounds", () => {
     expect(resolveGradientStops(solid("#123456"))).toBeNull();

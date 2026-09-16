@@ -249,6 +249,26 @@ describe("useProjectPersistence", () => {
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
+  it("settles the status when markSaved lands before the editor re-renders", async () => {
+    const { hook, saveProject } = setup("server");
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+
+    // The editor loads another copy and marks it saved in the same tick, so
+    // latestRef still holds the pre-load copy and markSaved reports dirty.
+    const theirs = project("a", "theirs");
+    act(() => {
+      hook.result.current.markSaved(theirs);
+    });
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
+
+    // React applies the loaded copy. Nothing is pending now, so a "dirty" the
+    // editor can never clear would be a lie — it has to settle.
+    hook.rerender({ projects: [theirs, initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+    expect(saveProject).not.toHaveBeenCalled();
+  });
+
   it("keeps a sibling's edits plannable when markSaved resolves a conflict", async () => {
     const { hook, saveProject } = setup("server");
     saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });

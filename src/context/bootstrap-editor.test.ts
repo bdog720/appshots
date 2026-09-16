@@ -4,7 +4,7 @@ import { BrowserStorage } from "../lib/storage/browser-storage";
 import { createFakeServer } from "../lib/storage/fake-server";
 import { createMemoryStorage } from "../lib/storage/memory-storage";
 import { ServerStorage } from "../lib/storage/server-storage";
-import { StorageError } from "../lib/storage/types";
+import { StorageError, type ProjectStorage } from "../lib/storage/types";
 import { bootstrapEditor } from "./bootstrap-editor";
 import { prepareInitialState } from "./EditorContext";
 
@@ -113,6 +113,29 @@ describe("bootstrapEditor", () => {
     expect(result.notice.migrationError).toMatch(/Habitly/);
     expect(result.storage).toBe(storage);
     expect(result.initialState.activeProjectId).toBe("kept");
+  });
+
+  it("falls back to this browser when the reload after migrating fails", async () => {
+    const fallback = new BrowserStorage(createMemoryStorage());
+    let loads = 0;
+    const storage = {
+      mode: "server",
+      load: async () => {
+        loads += 1;
+        if (loads === 1) return { projects: [], activeProjectId: null };
+        throw new StorageError("Loading projects failed (500)");
+      },
+    } as unknown as ProjectStorage;
+
+    const result = await bootstrapEditor(() => {}, {
+      resolveStorage: async () => ({ storage, notice: null }),
+      migrateBrowserProjects: async () => 1,
+      createBrowserStorage: () => fallback,
+    });
+
+    expect(result.storage).toBe(fallback);
+    expect(result.notice.unwritable).toBe(true);
+    expect(result.notice.migratedCount).toBe(1);
   });
 
   it("falls back to this browser when the container's state can't be loaded", async () => {

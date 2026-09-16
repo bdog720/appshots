@@ -479,6 +479,10 @@ export const EditorProvider = ({
   // Project state
   const [projects, setProjects] = useState<Project[]>(initialState.projects);
   const [activeProjectId, setActiveProjectId] = useState(initialState.activeProjectId);
+  // Read by the storage actions below, which run across awaits: the user can
+  // switch projects while a reload or a restore is still in flight.
+  const activeProjectIdRef = useRef(activeProjectId);
+  activeProjectIdRef.current = activeProjectId;
 
   // Get active project
   const activeProject =
@@ -867,10 +871,12 @@ export const EditorProvider = ({
   // (Export size and selected device are not part of undo history.)
   const applyAgentImport = (compiled: Project, mode: AgentImportMode) => {
     const normalized = normalizeProject(compiled);
-    // Container mode: pin the current content in history before replacing it.
-    // saveNow() reads the current project synchronously, before the state below changes.
+    // Container mode: keep the content being replaced in history, captured here
+    // and sent explicitly. saveNow() would queue behind a save already in
+    // flight and pin the imported content instead of what it replaced.
     if (mode === "replace" && isServerStorage(storage)) {
-      void persistence.saveNow();
+      const replaced = activeProject;
+      void storage.addHistory(replaced, "Before replace").catch(() => undefined);
     }
     if (mode === "new") {
       setProjects((prev) => [...prev, normalized]);
@@ -893,12 +899,14 @@ export const EditorProvider = ({
   // Put a project loaded from storage back into the workspace as the saved copy.
   const replaceProjectFromStorage = (loaded: Project) => {
     const normalized = normalizeProject(loaded);
-    // Applied synchronously so markSaved below sees the loaded copy as the
-    // editor's current state. Marking first would leave the editor reading
-    // "Unsaved changes" against a project it had just marked saved.
+    // Applied synchronously so activateProject's local state and `projects`
+    // agree before anything reads them. It also spares the persistence hook a
+    // marked-then-stale round trip — the hook settles that on its own now, so
+    // this ordering is a belt-and-braces there rather than the thing that
+    // makes it correct.
     flushSync(() => {
       setProjects((prev) => prev.map((p) => (p.id === normalized.id ? normalized : p)));
-      if (normalized.id === activeProjectId) activateProject(normalized);
+      if (normalized.id === activeProjectIdRef.current) activateProject(normalized);
     });
     // Per-project: a sibling whose save never went out must stay plannable.
     persistence.markSaved(normalized);
@@ -915,12 +923,14 @@ export const EditorProvider = ({
   };
 
   const listProjectHistory = async (): Promise<HistoryVersion[]> =>
-    isServerStorage(storage) ? storage.listHistory(activeProjectId) : [];
+    isServerStorage(storage) ? storage.listHistory(activeProjectIdRef.current) : [];
 
   const restoreProjectVersion = async (version: string) => {
     if (!isServerStorage(storage)) return;
+    // The project the user asked about, even if they switch while it loads.
+    const projectId = activeProjectIdRef.current;
     await persistence.retry(); // save pending edits so the restore pins them
-    const restored = await storage.restoreVersion(activeProjectId, version);
+    const restored = await storage.restoreVersion(projectId, version);
     replaceProjectFromStorage(restored);
   };
 

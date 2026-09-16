@@ -177,11 +177,14 @@ export function useProjectPersistence(options: {
     [runExclusive, runFlush],
   );
 
+  /** Returns the handle, so a caller can tell its own timer from a later one. */
   const scheduleFlush = () => {
     clearTimer();
-    timerRef.current = setTimeout(() => {
+    const handle = setTimeout(() => {
       void flush();
     }, delayMs);
+    timerRef.current = handle;
+    return handle;
   };
 
   /**
@@ -212,11 +215,24 @@ export function useProjectPersistence(options: {
 
   // Autosave: mark dirty right away, save after a quiet period.
   useEffect(() => {
-    if (conflictRef.current || !hasChanges()) return;
+    if (conflictRef.current) return;
+    if (!hasChanges()) {
+      // Nothing is pending. Usually that means markSaved replaced the baseline
+      // before React re-rendered with the loaded copy, so it had to report
+      // dirty against a copy that is now gone — settle it here rather than
+      // leaving "Unsaved changes" on screen with nothing to save, and rather
+      // than asking every caller to land its state update first.
+      setStatus((previous) => (previous.kind === "dirty" ? { kind: "saved", at: now() } : previous));
+      return;
+    }
     // Return the same object when already dirty/saving so this doesn't re-render in a loop.
     setStatus((previous) => (previous.kind === "saving" || previous.kind === "dirty" ? previous : { kind: "dirty" }));
-    scheduleFlush();
-    return clearTimer;
+    const scheduled = scheduleFlush();
+    // Only this effect's own timer: markSaved may have armed a later one, and
+    // cancelling that would strand the re-send it scheduled.
+    return () => {
+      if (timerRef.current === scheduled) clearTimer();
+    };
   }, [projects, activeProjectId, delayMs, flush]);
 
   // Unmounting mid-debounce would drop up to delayMs of edits, and the unload

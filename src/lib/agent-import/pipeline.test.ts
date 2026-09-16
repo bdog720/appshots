@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { runAgentImport, type ReadImage } from "./pipeline";
+import { checkStorageBudget } from "./issues";
+
+// Spied, not replaced: the budget check still runs, so the tests below can tell
+// "skipped" apart from "ran and found nothing".
+vi.mock("./issues", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./issues")>();
+  return { ...actual, checkStorageBudget: vi.fn(actual.checkStorageBudget) };
+});
 
 const manifest = (screens: unknown[]) =>
   new File(
@@ -18,12 +26,21 @@ const options = (readImage = stubReadImage(), existingStorageChars = 0) => {
 };
 
 describe("runAgentImport", () => {
-  it("skips the storage warning when projects are stored in the container", async () => {
-    const result = await runAgentImport(
-      [manifest([{ image: "01.png", headline: "Hi" }]), png("01.png")],
-      { ...options(stubReadImage()), existingStorageChars: null },
-    );
+  it("measures the browser storage budget only when projects live in this browser", async () => {
+    const budget = vi.mocked(checkStorageBudget);
+    const bundle = () => [manifest([{ image: "01.png", headline: "Hi" }]), png("01.png")];
+
+    budget.mockClear();
+    await runAgentImport(bundle(), { ...options(stubReadImage()), existingStorageChars: 0 });
+    expect(budget).toHaveBeenCalledTimes(1);
+
+    budget.mockClear();
+    const result = await runAgentImport(bundle(), {
+      ...options(stubReadImage()),
+      existingStorageChars: null,
+    });
     if (!result.ok) throw new Error("expected ok");
+    expect(budget).not.toHaveBeenCalled();
     expect(result.storageWarning).toBeNull();
   });
 

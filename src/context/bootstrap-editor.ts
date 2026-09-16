@@ -40,18 +40,24 @@ export const bootstrapEditor = async (
   let migratedCount = 0;
   let migrationError: string | undefined;
 
-  let loaded: LoadedState;
-  try {
-    loaded = await storage.load();
-  } catch (error) {
-    // The container answered /api/health but won't hand over its state. Saving
-    // to this browser beats a dead editor, and the container's copy is left
-    // exactly as it is.
-    if (storage.mode !== "server") throw error;
-    storage = createBrowserStorage();
-    unwritable = true;
-    loaded = await storage.load();
-  }
+  /**
+   * The container answered /api/health but won't hand over its state. Saving to
+   * this browser beats a dead editor, and the container's copy is left exactly
+   * as it is. Used for the reload after migrating too, so a container that
+   * fails only on the second read still opens the editor.
+   */
+  const loadWithFallback = async (): Promise<LoadedState> => {
+    try {
+      return await storage.load();
+    } catch (error) {
+      if (storage.mode !== "server") throw error;
+      storage = createBrowserStorage();
+      unwritable = true;
+      return storage.load();
+    }
+  };
+
+  let loaded = await loadWithFallback();
 
   if (storage.mode === "server") {
     onProgress("Moving projects into the container…");
@@ -68,7 +74,7 @@ export const bootstrapEditor = async (
       migrationError = messageOf(error);
     }
     if (migratedCount > 0 || migrationError !== undefined) {
-      loaded = await storage.load();
+      loaded = await loadWithFallback();
     }
   }
 

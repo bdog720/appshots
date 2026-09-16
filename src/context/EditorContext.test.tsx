@@ -87,6 +87,20 @@ const renderEditor = (
   return { ...mocks, initialState };
 };
 
+/** Makes the next save hang so a test can act while it is in flight. */
+const holdNextSave = (saveProject: ReturnType<typeof createStorage>["saveProject"]) => {
+  let release!: (result: SaveResult) => void;
+  saveProject.mockImplementationOnce(
+    () => new Promise<SaveResult>((resolve) => (release = resolve)),
+  );
+  return async (result: SaveResult) => {
+    await act(async () => {
+      release(result);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  };
+};
+
 const settle = async (ms = 1500) => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -211,18 +225,63 @@ describe("EditorProvider storage wiring", () => {
     expect(resetAll).toHaveBeenCalledTimes(1);
   });
 
-  it("pins the replaced content before an agent import overwrites it", async () => {
-    const { saveProject } = renderEditor({ mode: "server" });
-    const imported = legacyProject("imported", "Imported");
+  it("keeps the replaced content in history even while a save is in flight", async () => {
+    const { saveProject, addHistory } = renderEditor({ mode: "server" });
+    const release = holdNextSave(saveProject);
+    act(() => {
+      editor.renameProject("a", "Edited");
+    });
+    await settle();
+    expect(editor.saveStatus).toEqual({ kind: "saving" });
 
     await act(async () => {
-      editor.applyAgentImport(imported, "replace");
+      editor.applyAgentImport(legacyProject("imported", "Imported"), "replace");
     });
 
-    expect(saveProject).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "a", name: "a" }),
-      { pin: true, label: "Saved" },
-    );
+    // A pinning save would have queued behind the in-flight one and captured
+    // the imported content instead of the content it replaced.
+    expect(addHistory).toHaveBeenCalledTimes(1);
+    expect(addHistory.mock.calls[0][0].screenshots[0].headline).toBe("a headline");
+    expect(addHistory.mock.calls[0][1]).toBe("Before replace");
+
+    await release({ ok: true });
+    await settle();
     expect(editor.activeScreenshot.headline).toBe("imported headline");
+  });
+
+  it("doesn't pull the user back when they switch projects mid-restore", async () => {
+    const { restoreVersion } = renderEditor({ mode: "server" });
+    let release!: (project: Project) => void;
+    restoreVersion.mockImplementationOnce(
+      () => new Promise<Project>((resolve) => (release = resolve)),
+    );
+    const restored = {
+      ...editor.projects[0],
+      screenshots: [{ ...editor.projects[0].screenshots[0], headline: "restored headline" }],
+    };
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = editor.restoreProjectVersion("1757900000000-3");
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    act(() => {
+      editor.switchProject("b");
+    });
+
+    await act(async () => {
+      release(restored);
+      await pending;
+    });
+
+    // The version the user asked about is still the one restored…
+    expect(restoreVersion.mock.calls[0][0]).toBe("a");
+    expect(editor.projects.find((p) => p.id === "a")?.screenshots[0].headline).toBe(
+      "restored headline",
+    );
+    // …but they stay where they navigated to.
+    expect(editor.activeProjectId).toBe("b");
   });
 });
