@@ -7,7 +7,10 @@ import {
   isServerImageUrl,
   mapProjectImages,
   mapProjectImagesSync,
+  rasterSizeFor,
+  SVG_RASTER_LONG_EDGE,
 } from "./images";
+import { exportSizes } from "../../constants";
 
 const project = {
   id: "p",
@@ -46,6 +49,64 @@ describe("image helpers", () => {
     expect(mapped.screenshots[0].devices[1].screenshotSrc).toBeNull();
     expect(mapped.screenshots[0].overlayImages[0].src).toBe("mapped:/api/images/abc.png");
     expect(project.screenshots[0].devices[0].screenshotSrc).toBe("data:image/png;base64,AQID");
+  });
+
+  describe("rasterSizeFor", () => {
+    const svg = (attrs: string) => `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}></svg>`;
+
+    it("renders SVGs at the largest export edge", () => {
+      const longest = Math.max(...exportSizes.map((size) => Math.max(size.width, size.height)));
+      expect(SVG_RASTER_LONG_EDGE).toBe(longest);
+    });
+
+    it("keeps a raster image at its natural size", () => {
+      expect(
+        rasterSizeFor({ contentType: "image/gif", naturalWidth: 390, naturalHeight: 844 }),
+      ).toEqual({ width: 390, height: 844 });
+    });
+
+    it("scales a viewBox-only SVG up with the viewBox aspect ratio", () => {
+      // Chrome reports 69×150 for this SVG: a default 150px height.
+      expect(
+        rasterSizeFor({
+          contentType: "image/svg+xml",
+          svgSource: svg('viewBox="0 0 390 844"'),
+          naturalWidth: 69,
+          naturalHeight: 150,
+        }),
+      ).toEqual({ width: 1325, height: SVG_RASTER_LONG_EDGE });
+    });
+
+    it("scales a sized SVG up rather than keeping its declared pixels", () => {
+      expect(
+        rasterSizeFor({
+          contentType: "image/svg+xml",
+          svgSource: svg('width="390px" height="844" viewBox="0 0 10 10"'),
+          naturalWidth: 390,
+          naturalHeight: 844,
+        }),
+      ).toEqual({ width: 1325, height: SVG_RASTER_LONG_EDGE });
+    });
+
+    it("scales a landscape SVG by its width", () => {
+      expect(
+        rasterSizeFor({
+          contentType: "image/svg+xml",
+          svgSource: svg('width="100%" viewBox="0 0 1000 500"'),
+          naturalWidth: 0,
+          naturalHeight: 0,
+        }),
+      ).toEqual({ width: SVG_RASTER_LONG_EDGE, height: 1434 });
+    });
+
+    it("falls back to the natural aspect ratio, then a square", () => {
+      expect(
+        rasterSizeFor({ contentType: "image/svg+xml", svgSource: svg(""), naturalWidth: 300, naturalHeight: 150 }),
+      ).toEqual({ width: SVG_RASTER_LONG_EDGE, height: 1434 });
+      expect(
+        rasterSizeFor({ contentType: "image/svg+xml", svgSource: "not svg", naturalWidth: 0, naturalHeight: 0 }),
+      ).toEqual({ width: SVG_RASTER_LONG_EDGE, height: SVG_RASTER_LONG_EDGE });
+    });
   });
 
   it("maps synchronously or gives up", () => {

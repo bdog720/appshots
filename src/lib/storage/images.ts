@@ -1,5 +1,6 @@
 /** Converting project image fields between inline data URLs and server URLs. */
 
+import { exportSizes } from "../../constants";
 import type { Project } from "../../types";
 
 export const isDataUrl = (value: unknown): value is string =>
@@ -39,21 +40,75 @@ export const bytesToDataUrl = (bytes: Uint8Array, contentType: string): string =
   return `data:${contentType};base64,${btoa(binary)}`;
 };
 
-const FALLBACK_SIZE = 1024;
+/**
+ * The longest edge an SVG is rendered at. A converted SVG stops being vector,
+ * so it's drawn large enough to stay sharp in the biggest export.
+ */
+export const SVG_RASTER_LONG_EDGE = Math.max(
+  ...exportSizes.map((size) => Math.max(size.width, size.height)),
+);
+
+/** A positive pixel length from an SVG width/height attribute; percentages and units other than px don't count. */
+const svgLength = (value: string | null): number | null => {
+  const match = value?.trim().match(/^(\d+(?:\.\d+)?)(px)?$/);
+  const length = match ? Number(match[1]) : 0;
+  return length > 0 ? length : null;
+};
+
+/** Width over height as the SVG declares it: width/height attributes, then the viewBox. */
+const svgAspectRatio = (source: string): number | null => {
+  const root = new DOMParser().parseFromString(source, "image/svg+xml").documentElement;
+  if (root.nodeName !== "svg") return null;
+  const width = svgLength(root.getAttribute("width"));
+  const height = svgLength(root.getAttribute("height"));
+  if (width && height) return width / height;
+  const viewBox = (root.getAttribute("viewBox") ?? "").trim().split(/[\s,]+/).map(Number);
+  if (viewBox.length === 4 && viewBox[2] > 0 && viewBox[3] > 0) return viewBox[2] / viewBox[3];
+  return null;
+};
+
+/**
+ * The canvas size to convert an image at. Raster images keep their pixels;
+ * SVGs are scaled to SVG_RASTER_LONG_EDGE, because browsers report tiny
+ * default sizes for them (Chrome gives a viewBox-only SVG a 150px height).
+ */
+export const rasterSizeFor = (image: {
+  contentType: string;
+  svgSource?: string;
+  naturalWidth: number;
+  naturalHeight: number;
+}): { width: number; height: number } => {
+  const { naturalWidth, naturalHeight } = image;
+  if (image.contentType !== "image/svg+xml") return { width: naturalWidth, height: naturalHeight };
+  const ratio =
+    svgAspectRatio(image.svgSource ?? "") ??
+    (naturalWidth > 0 && naturalHeight > 0 ? naturalWidth / naturalHeight : 1);
+  return ratio >= 1
+    ? { width: SVG_RASTER_LONG_EDGE, height: Math.round(SVG_RASTER_LONG_EDGE / ratio) }
+    : { width: Math.round(SVG_RASTER_LONG_EDGE * ratio), height: SVG_RASTER_LONG_EDGE };
+};
 
 /**
  * Re-encodes any image the browser can decode (GIF, SVG, AVIF…) as a PNG data
- * URL. Browser-only: jsdom can't decode images, so this isn't unit-tested.
+ * URL. Browser-only: jsdom can't decode images, so only the sizing is unit-tested.
  */
 export const convertDataUrlToPng = (dataUrl: string): Promise<string> =>
   new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
       try {
-        const sized = image.naturalWidth > 0 && image.naturalHeight > 0;
+        const contentType = dataUrlContentType(dataUrl);
+        const size = rasterSizeFor({
+          contentType,
+          svgSource:
+            contentType === "image/svg+xml" ? new TextDecoder().decode(dataUrlToBytes(dataUrl).bytes) : undefined,
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+        });
+        if (size.width <= 0 || size.height <= 0) throw new Error("The image has no size");
         const canvas = document.createElement("canvas");
-        canvas.width = sized ? image.naturalWidth : FALLBACK_SIZE;
-        canvas.height = sized ? image.naturalHeight : FALLBACK_SIZE;
+        canvas.width = size.width;
+        canvas.height = size.height;
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas 2D is unavailable");
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
