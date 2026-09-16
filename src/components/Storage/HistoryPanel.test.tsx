@@ -46,6 +46,9 @@ describe("HistoryPanel", () => {
     expect(within(items[0]).getByText(/9 screens/)).not.toBeNull();
     expect(within(items[0]).getByText("“Build habits that stick”")).not.toBeNull();
     expect(within(items[0]).getByLabelText("Pinned")).not.toBeNull();
+    // role="img" so assistive tech that ignores a bare span's aria-label
+    // still announces it.
+    expect(within(items[0]).getByRole("img", { name: "Pinned" })).not.toBeNull();
     expect(within(items[0]).getByText("Saved")).not.toBeNull();
     expect(within(items[1]).getByText(/1 screen$/)).not.toBeNull();
     expect(within(items[1]).queryByLabelText("Pinned")).toBeNull();
@@ -103,5 +106,25 @@ describe("HistoryPanel", () => {
     rerender(<HistoryPanel {...props} loadHistory={vi.fn(async () => versions)} />);
     rerender(<HistoryPanel {...props} loadHistory={vi.fn(async () => versions)} />);
     expect(loadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't flash the previous project's list when switching to a different project", async () => {
+    const props = { isOpen: true, onClose: vi.fn(), onRestore: vi.fn(async () => {}), now: () => NOW };
+    const { rerender } = render(
+      <HistoryPanel {...props} projectId="p1" loadHistory={vi.fn(async () => versions)} />,
+    );
+    await screen.findAllByRole("listitem");
+
+    let resolveSecond!: (loaded: HistoryVersion[]) => void;
+    const second = vi.fn(() => new Promise<HistoryVersion[]>((resolve) => (resolveSecond = resolve)));
+    rerender(<HistoryPanel {...props} projectId="p2" loadHistory={second} />);
+
+    // Before the new project's own load resolves, "p1"'s list must be gone —
+    // not left on screen alongside (or instead of) a loading state.
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.getByText("Loading versions…")).not.toBeNull();
+
+    resolveSecond(versions);
+    expect(await screen.findAllByRole("listitem")).toHaveLength(2);
   });
 });

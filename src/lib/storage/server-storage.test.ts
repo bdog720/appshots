@@ -45,13 +45,17 @@ describe("ServerStorage load and save", () => {
     expect(server.projects.get("new")?.revision).toBe(2);
   });
 
-  it("reports conflicts without updating the remembered revision", async () => {
+  it("resyncs the remembered revision from a conflict's reported revision", async () => {
+    // A conflict is authoritative information straight from the server, so it
+    // should correct the tracked revision on its own — otherwise an ordinary
+    // conflict leaves the client stuck resending the same stale If-Match
+    // forever until the user explicitly resolves it (Keep mine / Load theirs).
     const { server, storage } = setup();
     await storage.saveProject(project("p"));
     server.projects.set("p", { revision: 5, project: project("p") });
     expect(await storage.saveProject(project("p"))).toEqual({ ok: false, conflict: { revision: 5, savedAt: 1 } });
-    await storage.saveProject(project("p"));
-    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"1"');
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"5"');
   });
 
   it("sends baseRevision, pin, pinPrevious and label when given", async () => {
@@ -244,6 +248,50 @@ describe("ServerStorage other operations", () => {
     // The next save must use the restored revision, not the stale one from the slow save.
     expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
     expect(server.calls.at(-1)?.headers["if-match"]).toBe('"3"');
+  });
+
+  it("lets reloadProject correct the tracked revision downward (e.g. after a backup restore)", async () => {
+    // The data directory can be restored from a backup, or another client can
+    // delete and recreate the same id — either way the server's revision can
+    // legitimately be LOWER than what this client last saw. The guard must be
+    // about response ordering, not magnitude, so a genuinely lower value from
+    // a fresher request has to win.
+    const { server, storage } = setup();
+    await storage.saveProject(project("p")); // tracked -> 1
+    await storage.saveProject(project("p")); // tracked -> 2
+    server.projects.set("p", { revision: 1, project: project("p") }); // e.g. restored from backup
+
+    expect((await storage.reloadProject("p"))?.id).toBe("p");
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"1"');
+  });
+
+  it("lets an explicit save against a lower server revision resync the client instead of wedging it", async () => {
+    // Mirrors "Keep mine" after a server rollback: tracked is far ahead (7),
+    // the server is actually behind (1), and the explicit baseRevision comes
+    // from the conflict payload rather than the client's stale map. Each such
+    // save must correct the tracked revision immediately — not require the
+    // server to "catch up" past the stale value before saves work again.
+    const { server, storage } = setup();
+    for (let i = 0; i < 7; i += 1) await storage.saveProject(project("p")); // tracked -> 7
+    server.projects.set("p", { revision: 1, project: project("p") }); // e.g. restored from backup
+
+    expect(await storage.saveProject(project("p"), { baseRevision: 1, pinPrevious: true })).toEqual({ ok: true });
+
+    // Resynced to 2 (not stuck refusing to move below 7), so the very next
+    // save succeeds on the first try instead of looping through more 409s.
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"2"');
+  });
+
+  it("clears revision tracking on delete so a recreated project starts fresh", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p"));
+    await storage.saveProject(project("p")); // tracked -> 2
+    await storage.deleteProject("p");
+
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-none-match"]).toBe("*");
   });
 
   it("loads projects in parallel and keeps their order", async () => {

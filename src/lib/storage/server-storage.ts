@@ -56,6 +56,10 @@ const projectUrl = (id: string) => `/api/projects/${encodeURIComponent(id)}`;
 export class ServerStorage implements ServerProjectStorage {
   readonly mode = "server" as const;
   private readonly revisions = new Map<string, number>();
+  /** Per-project ticket counter: the next ticket `nextTicket` will hand out. */
+  private readonly seq = new Map<string, number>();
+  /** Per-project: the newest ticket whose response has been applied so far. */
+  private readonly applied = new Map<string, number>();
   /** Keyed by the original data URL, so a converted image is converted once. */
   private readonly uploads = new Map<string, CachedUpload>();
   private readonly pendingUnloadSaves = new Map<string, Promise<void>>();
@@ -94,13 +98,32 @@ export class ServerStorage implements ServerProjectStorage {
   }
 
   /**
-   * Records a revision seen for a project, but never lets an older response
-   * (e.g. a save whose reply arrives after a later restore already moved the
-   * revision forward) overwrite a newer one already tracked.
+   * A ticket for a request about to go out for a project, taken immediately
+   * before its fetch so ticket order matches send order. Responses are
+   * applied by that order, not by revision magnitude: the server's revision
+   * can legitimately move backward (a restored backup, a rollback, another
+   * client deleting and recreating the same id), and a one-way "only ever
+   * increase" guard would leave the client stuck resending a stale, too-high
+   * revision forever in exactly those cases.
    */
-  private trackRevision(id: string, revision: number): void {
-    const current = this.revisions.get(id);
-    if (current === undefined || revision > current) this.revisions.set(id, revision);
+  private nextTicket(id: string): number {
+    const ticket = (this.seq.get(id) ?? 0) + 1;
+    this.seq.set(id, ticket);
+    return ticket;
+  }
+
+  /**
+   * Records a revision seen for a project under the ticket its request was
+   * given. A response whose ticket is older than the newest one already
+   * applied is a straggler — from a request sent before one that has already
+   * landed — and is dropped; otherwise the server's value wins outright,
+   * including downward.
+   */
+  private trackRevision(id: string, revision: number, ticket: number): void {
+    const newest = this.applied.get(id);
+    if (newest !== undefined && ticket <= newest) return;
+    this.applied.set(id, ticket);
+    this.revisions.set(id, revision);
   }
 
   /** The cached upload for a data URL, unless it's old enough that the server may have deleted it. */
@@ -177,6 +200,7 @@ export class ServerStorage implements ServerProjectStorage {
     // An unload save that's still in flight may move the revision on; never rejects.
     await this.pendingUnloadSaves.get(project.id);
     const revision = options.baseRevision ?? this.revisions.get(project.id) ?? 0;
+    const ticket = this.nextTicket(project.id);
     const response = await this.request(projectUrl(project.id), {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...this.preconditionHeaders(revision) },
@@ -189,10 +213,14 @@ export class ServerStorage implements ServerProjectStorage {
     });
     if (response.status === 409) {
       const conflict = (await response.json()) as { revision: number; savedAt: number };
+      // The conflict itself is authoritative straight from the server, so it
+      // resyncs the tracked revision on its own rather than leaving the
+      // client stuck resending the same stale precondition.
+      this.trackRevision(project.id, conflict.revision, ticket);
       return { ok: false, conflict: { revision: conflict.revision, savedAt: conflict.savedAt } };
     }
     const saved = (await (await this.ensureOk(response, "Saving")).json()) as { revision: number };
-    this.trackRevision(project.id, saved.revision);
+    this.trackRevision(project.id, saved.revision, ticket);
     return { ok: true };
   }
 
@@ -205,6 +233,7 @@ export class ServerStorage implements ServerProjectStorage {
     // Browsers cap keepalive bodies in bytes, so measure UTF-8 bytes, not characters.
     if (new TextEncoder().encode(body).byteLength >= UNLOAD_BODY_LIMIT) return false;
     const revision = this.revisions.get(project.id) ?? 0;
+    const ticket = this.nextTicket(project.id);
     const settled = this.fetchImpl(projectUrl(project.id), {
       method: "PUT",
       keepalive: true,
@@ -216,7 +245,7 @@ export class ServerStorage implements ServerProjectStorage {
         // If the page survives (unload cancelled), later saves need the new revision.
         if (!response.ok) return;
         const saved = (await response.json()) as { revision?: unknown };
-        if (typeof saved.revision === "number") this.trackRevision(project.id, saved.revision);
+        if (typeof saved.revision === "number") this.trackRevision(project.id, saved.revision, ticket);
       })
       .catch(() => undefined);
     this.pendingUnloadSaves.set(project.id, settled);
@@ -230,6 +259,8 @@ export class ServerStorage implements ServerProjectStorage {
     const response = await this.request(projectUrl(id), { method: "DELETE" });
     if (response.status !== 404) await this.ensureOk(response, "Deleting a project");
     this.revisions.delete(id);
+    this.applied.delete(id);
+    this.seq.delete(id);
   }
 
   async saveMeta(activeProjectId: string, projectOrder: string[]): Promise<void> {
@@ -256,13 +287,14 @@ export class ServerStorage implements ServerProjectStorage {
   }
 
   async reloadProject(id: string): Promise<Project | null> {
+    const ticket = this.nextTicket(id);
     const response = await this.request(projectUrl(id));
     if (response.status === 404) return null;
     const stored = (await (await this.ensureOk(response, "Loading a project")).json()) as {
       revision: number;
       project: Project;
     };
-    this.trackRevision(id, stored.revision);
+    this.trackRevision(id, stored.revision, ticket);
     return stored.project;
   }
 
@@ -284,12 +316,13 @@ export class ServerStorage implements ServerProjectStorage {
   }
 
   async restoreVersion(id: string, version: string): Promise<Project> {
+    const ticket = this.nextTicket(id);
     const response = await this.ensureOk(
       await this.request(`${projectUrl(id)}/history/${encodeURIComponent(version)}/restore`, { method: "POST" }),
       "Restoring a version",
     );
     const restored = (await response.json()) as { revision: number; project: Project };
-    this.trackRevision(id, restored.revision);
+    this.trackRevision(id, restored.revision, ticket);
     return restored.project;
   }
 

@@ -46,6 +46,21 @@ export const HistoryPanel = ({
   const [restoring, setRestoring] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Reset synchronously, during render, whenever the panel opens, closes or
+  // switches to a different project — not just from the load effect below —
+  // so a reopen or a project switch never paints a frame of the previous
+  // project's list before that effect gets a chance to clear it. (The effect
+  // still separately clears state for the "Try again" retry, which doesn't
+  // change this key.)
+  const openKey = isOpen ? projectId : null;
+  const lastOpenKeyRef = useRef(openKey);
+  if (lastOpenKeyRef.current !== openKey) {
+    lastOpenKeyRef.current = openKey;
+    setVersions(null);
+    setError(null);
+    setConfirming(null);
+  }
+
   useModalDismiss({ isOpen, onClose, containerRef: panelRef });
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
@@ -134,7 +149,7 @@ export const HistoryPanel = ({
                     <div className="min-w-0 space-y-1">
                       <p className="flex items-center gap-1.5 text-zinc-200">
                         {entry.pinned && (
-                          <span aria-label="Pinned">
+                          <span role="img" aria-label="Pinned">
                             <Pin className="h-3 w-3 text-violet-400" aria-hidden="true" />
                           </span>
                         )}

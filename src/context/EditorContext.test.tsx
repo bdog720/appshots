@@ -190,7 +190,7 @@ describe("EditorProvider storage wiring", () => {
   });
 
   it("saves pending edits before restoring a version, then loads the restored copy", async () => {
-    const { saveProject, restoreVersion } = renderEditor({ mode: "server" });
+    const { saveProject, restoreVersion, addHistory } = renderEditor({ mode: "server" });
     act(() => {
       editor.renameProject("a", "Pending");
     });
@@ -206,6 +206,10 @@ describe("EditorProvider storage wiring", () => {
 
     expect(saveProject).toHaveBeenCalledTimes(1);
     expect(saveProject.mock.calls[0][0].name).toBe("Pending");
+    // Belt-and-braces even on the happy path: the in-memory copy is pinned
+    // directly rather than trusting that the save above already reached the
+    // server (see the conflict/error cases below, where it hasn't).
+    expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({ name: "Pending" }), "Before restore");
     expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
     expect(editor.activeProject.name).toBe("Restored");
     // The restore was written by the server, not by a save in this tick.
@@ -249,6 +253,37 @@ describe("EditorProvider storage wiring", () => {
     await release({ ok: true });
     await settle();
     expect(editor.activeScreenshot.headline).toBe("imported headline");
+  });
+
+  it("pins current edits to history before restoring when a conflict is already pending", async () => {
+    // retry() is a no-op while a conflict is pending, so the edited copy
+    // would never reach the server on its own — the restore's confirmation
+    // promises it's saved to history regardless, so it must be pinned
+    // explicitly rather than relying on retry() having succeeded.
+    const { saveProject, restoreVersion, addHistory } = renderEditor({ mode: "server" });
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    act(() => {
+      editor.renameProject("a", "Mine");
+    });
+    await settle();
+    expect(editor.saveStatus).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    restoreVersion.mockResolvedValueOnce({ ...editor.projects[0], name: "Restored" });
+    await act(async () => {
+      await editor.restoreProjectVersion("1757900000000-3");
+    });
+
+    expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({ name: "Mine" }), "Before restore");
+    expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
+    expect(editor.activeProject.name).toBe("Restored");
+  });
+
+  it("surfaces an error and does not restore when pinning current edits fails", async () => {
+    const { addHistory, restoreVersion } = renderEditor({ mode: "server" });
+    addHistory.mockRejectedValueOnce(new Error("boom"));
+
+    await expect(editor.restoreProjectVersion("1757900000000-3")).rejects.toThrow("boom");
+    expect(restoreVersion).not.toHaveBeenCalled();
   });
 
   it("doesn't pull the user back when they switch projects mid-restore", async () => {

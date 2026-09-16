@@ -929,7 +929,20 @@ export const EditorProvider = ({
     if (!isServerStorage(storage)) return;
     // The project the user asked about, even if they switch while it loads.
     const projectId = activeProjectIdRef.current;
-    await persistence.retry(); // save pending edits so the restore pins them
+    // Captured before any awaits: this is the content the confirmation dialog
+    // promised to save, regardless of what happens to it below.
+    const localCopy = projects.find((project) => project.id === projectId);
+    await persistence.retry(); // best-effort: also save pending edits normally
+    // retry() is a no-op while a conflict is pending, and swallows a save
+    // failure into an error status rather than throwing — so its outcome
+    // can't be trusted here. Pin the in-memory copy directly rather than
+    // relying on it having already reached the server (the restore itself
+    // also auto-pins the server's current copy, but that copy is stale
+    // exactly when retry() didn't succeed). Same belt-and-braces pattern
+    // applyAgentImport's "replace" mode uses for the same kind of race.
+    // Left unswallowed: if this fails, restoring without it would silently
+    // break the dialog's promise, so the panel must show the error instead.
+    if (localCopy) await storage.addHistory(localCopy, "Before restore");
     const restored = await storage.restoreVersion(projectId, version);
     replaceProjectFromStorage(restored);
   };
