@@ -15,6 +15,9 @@ import { StorageError, type LoadedState, type ProjectStorage, type SaveResult } 
 
 const UNAVAILABLE = "Browser storage is unavailable";
 
+/** The exact message thrown when a write hits the browser's storage quota. */
+export const BROWSER_STORAGE_FULL_MESSAGE = "Browser storage is full";
+
 /** Quota errors across browsers, including legacy Firefox's name and code. */
 const isQuotaError = (error: unknown): boolean =>
   error instanceof DOMException &&
@@ -135,7 +138,7 @@ export class BrowserStorage implements ProjectStorage {
     try {
       storage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
-      if (isQuotaError(error)) throw new StorageError("Browser storage is full");
+      if (isQuotaError(error)) throw new StorageError(BROWSER_STORAGE_FULL_MESSAGE);
       if (isSecurityError(error)) throw new StorageError(UNAVAILABLE);
       throw new StorageError("Couldn't save to browser storage");
     }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { History } from "lucide-react";
+import { BROWSER_STORAGE_FULL_MESSAGE } from "../../lib/storage/browser-storage";
 import type { StorageMode } from "../../lib/storage/types";
 import type { SaveStatus } from "../../lib/storage/useProjectPersistence";
 
@@ -68,7 +69,9 @@ export const SaveIndicator = ({
       title = status.message;
       if (storageMode === "browser") {
         visibleDetail = status.message;
-        if (/full/i.test(status.message)) {
+        // The shared constant is the primary match; the loose pattern is a
+        // fallback in case a differently-worded quota error slips through.
+        if (status.message === BROWSER_STORAGE_FULL_MESSAGE || /full/i.test(status.message)) {
           detailHint = "Delete or shrink a project to free up space.";
         }
       }
@@ -80,39 +83,45 @@ export const SaveIndicator = ({
   }
 
   return (
-    <div className="mt-2 flex flex-col gap-1 text-xs text-zinc-400">
-      <div className="flex items-center justify-between gap-2">
-        <span role="status" aria-live="polite" title={title} className="flex min-w-0 items-center gap-1.5">
+    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-400">
+      {/*
+       * One live region for the whole message: the label, the detail and the
+       * hint are announced together as a single coherent update. Splitting
+       * the detail into its own unlabelled block (as an earlier version did)
+       * meant a tooltip-averse detail was visible but never announced.
+       */}
+      <div role="status" aria-live="polite" title={title} className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5">
           <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
           <span className="truncate">{label}</span>
         </span>
-        <span className="flex shrink-0 items-center gap-0.5">
-          {status.kind === "error" && (
-            <button type="button" className={BUTTON} onClick={onRetry}>
-              Retry
-            </button>
-          )}
-          <button
-            type="button"
-            className={BUTTON}
-            onClick={onSaveNow}
-            disabled={status.kind === "saving" || status.kind === "conflict"}
-          >
-            Save now
-          </button>
-          {storageMode === "server" && (
-            <button type="button" className={BUTTON} onClick={onOpenHistory} aria-label="Version history">
-              <History className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </span>
+        {visibleDetail && (
+          <span className="truncate pl-3.5 text-[11px] text-red-300">
+            <span>{visibleDetail}</span>
+            {detailHint && <> — <span>{detailHint}</span></>}
+          </span>
+        )}
       </div>
-      {visibleDetail && (
-        <div className="truncate text-[11px] text-red-300">
-          <span>{visibleDetail}</span>
-          {detailHint && <> — <span>{detailHint}</span></>}
-        </div>
-      )}
+      <span className="flex shrink-0 items-center gap-0.5">
+        {status.kind === "error" && (
+          <button type="button" className={BUTTON} onClick={onRetry}>
+            Retry
+          </button>
+        )}
+        <button
+          type="button"
+          className={BUTTON}
+          onClick={onSaveNow}
+          disabled={status.kind === "saving" || status.kind === "conflict"}
+        >
+          Save now
+        </button>
+        {storageMode === "server" && (
+          <button type="button" className={BUTTON} onClick={onOpenHistory} aria-label="Version history">
+            <History className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </span>
     </div>
   );
 };

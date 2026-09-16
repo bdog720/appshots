@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { BROWSER_STORAGE_FULL_MESSAGE } from "../../lib/storage/browser-storage";
 import type { SaveStatus } from "../../lib/storage/useProjectPersistence";
 import { SaveIndicator, formatSavedAt } from "./SaveIndicator";
 
@@ -34,24 +35,48 @@ describe("SaveIndicator", () => {
   });
 
   it("offers Retry only after an error", () => {
-    const handlers = renderIndicator({ kind: "error", message: "Browser storage is full" });
+    const handlers = renderIndicator({ kind: "error", message: BROWSER_STORAGE_FULL_MESSAGE });
     expect(screen.getByText("Couldn't save")).not.toBeNull();
-    expect(screen.getByTitle("Browser storage is full")).not.toBeNull();
+    expect(screen.getByTitle(BROWSER_STORAGE_FULL_MESSAGE)).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(handlers.onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the error reason visibly in browser mode, with a hint when storage is full", () => {
-    renderIndicator({ kind: "error", message: "Browser storage is full" }, "browser");
-    expect(screen.getByText("Couldn't save")).not.toBeNull();
-    expect(screen.getByText("Browser storage is full")).not.toBeNull();
-    expect(screen.getByText(/delete or shrink a project/i)).not.toBeNull();
+  it("announces the error reason and hint within the same live region as the label", () => {
+    renderIndicator({ kind: "error", message: BROWSER_STORAGE_FULL_MESSAGE }, "browser");
+    // The whole point of making this visible was that a tooltip alone isn't
+    // reliably announced — so the detail and hint must live inside the same
+    // accessible live region as "Couldn't save", not merely be visible text
+    // somewhere on the page.
+    const region = screen.getByRole("status");
+    expect(within(region).getByText("Couldn't save")).not.toBeNull();
+    expect(within(region).getByText(BROWSER_STORAGE_FULL_MESSAGE)).not.toBeNull();
+    expect(within(region).getByText(/delete or shrink a project/i)).not.toBeNull();
+    // One coherent announcement: the label isn't repeated.
+    expect(region.textContent?.match(/Couldn't save/g)?.length).toBe(1);
   });
 
   it("does not add the storage-full hint for other browser-mode error messages", () => {
     renderIndicator({ kind: "error", message: "Can't reach the AppShots server" }, "browser");
-    expect(screen.getByText("Can't reach the AppShots server")).not.toBeNull();
-    expect(screen.queryByText(/delete or shrink a project/i)).toBeNull();
+    const region = screen.getByRole("status");
+    expect(within(region).getByText("Can't reach the AppShots server")).not.toBeNull();
+    expect(within(region).queryByText(/delete or shrink a project/i)).toBeNull();
+  });
+
+  it("keeps the announced text stable across the periodic re-render tick", async () => {
+    vi.useFakeTimers();
+    try {
+      renderIndicator({ kind: "error", message: BROWSER_STORAGE_FULL_MESSAGE }, "browser");
+      const region = screen.getByRole("status");
+      const before = region.textContent;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      // Same text in, same text out: nothing re-announces on the unrelated tick.
+      expect(region.textContent).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows conflicts", () => {
