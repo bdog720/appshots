@@ -222,7 +222,9 @@ export function useProjectPersistence(options: {
       // dirty against a copy that is now gone — settle it here rather than
       // leaving "Unsaved changes" on screen with nothing to save, and rather
       // than asking every caller to land its state update first.
-      setStatus((previous) => (previous.kind === "dirty" ? { kind: "saved", at: now() } : previous));
+      // No `at`: the content matches storage, but no write happened in this
+      // tick, so this must read "Saved" and not "Saved · just now".
+      setStatus((previous) => (previous.kind === "dirty" ? { kind: "saved", at: null } : previous));
       return;
     }
     // Return the same object when already dirty/saving so this doesn't re-render in a loop.

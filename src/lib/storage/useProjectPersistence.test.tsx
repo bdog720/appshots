@@ -262,10 +262,12 @@ describe("useProjectPersistence", () => {
     expect(hook.result.current.status).toEqual({ kind: "dirty" });
 
     // React applies the loaded copy. Nothing is pending now, so a "dirty" the
-    // editor can never clear would be a lie — it has to settle.
+    // editor can never clear would be a lie — it has to settle. No write
+    // happened in this tick, though, so it carries no save time: "Saved", not
+    // "Saved · just now".
     hook.rerender({ projects: [theirs, initial[1]], activeProjectId: "a" });
     await flushTimers();
-    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: null });
     expect(saveProject).not.toHaveBeenCalled();
   });
 
