@@ -41,9 +41,27 @@ describe("SaveIndicator", () => {
     expect(handlers.onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("shows the error reason visibly in browser mode, with a hint when storage is full", () => {
+    renderIndicator({ kind: "error", message: "Browser storage is full" }, "browser");
+    expect(screen.getByText("Couldn't save")).not.toBeNull();
+    expect(screen.getByText("Browser storage is full")).not.toBeNull();
+    expect(screen.getByText(/delete or shrink a project/i)).not.toBeNull();
+  });
+
+  it("does not add the storage-full hint for other browser-mode error messages", () => {
+    renderIndicator({ kind: "error", message: "Can't reach the AppShots server" }, "browser");
+    expect(screen.getByText("Can't reach the AppShots server")).not.toBeNull();
+    expect(screen.queryByText(/delete or shrink a project/i)).toBeNull();
+  });
+
   it("shows conflicts", () => {
     renderIndicator({ kind: "conflict", projectId: "p", revision: 3, savedAt: 1 });
     expect(screen.getByText("Changed elsewhere")).not.toBeNull();
+  });
+
+  it("disables Save now while a conflict is pending", () => {
+    renderIndicator({ kind: "conflict", projectId: "p", revision: 3, savedAt: 1 });
+    expect((screen.getByRole("button", { name: "Save now" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("saves now and opens history in container mode only", () => {
@@ -59,5 +77,10 @@ describe("SaveIndicator", () => {
     renderIndicator({ kind: "saved", at: null }, "browser");
     expect(screen.queryByRole("button", { name: "Version history" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("renders plain 'Saved' when there is no save timestamp", () => {
+    renderIndicator({ kind: "saved", at: null });
+    expect(screen.getByText("Saved")).not.toBeNull();
   });
 });

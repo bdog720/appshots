@@ -46,6 +46,10 @@ export const SaveIndicator = ({
   let dot = "bg-emerald-500";
   let label = "";
   let title = where;
+  // Set only for a browser-mode error: a tooltip alone isn't visible on touch
+  // and isn't reliably announced, and the user needs to act (free up space).
+  let visibleDetail: string | null = null;
+  let detailHint: string | null = null;
   switch (status.kind) {
     case "dirty":
       dot = "bg-amber-400";
@@ -62,6 +66,12 @@ export const SaveIndicator = ({
       dot = "bg-red-500";
       label = "Couldn't save";
       title = status.message;
+      if (storageMode === "browser") {
+        visibleDetail = status.message;
+        if (/full/i.test(status.message)) {
+          detailHint = "Delete or shrink a project to free up space.";
+        }
+      }
       break;
     case "conflict":
       dot = "bg-red-500";
@@ -70,31 +80,39 @@ export const SaveIndicator = ({
   }
 
   return (
-    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-400">
-      <span role="status" aria-live="polite" title={title} className="flex min-w-0 items-center gap-1.5">
-        <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-        <span className="truncate">{label}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-0.5">
-        {status.kind === "error" && (
-          <button type="button" className={BUTTON} onClick={onRetry}>
-            Retry
+    <div className="mt-2 flex flex-col gap-1 text-xs text-zinc-400">
+      <div className="flex items-center justify-between gap-2">
+        <span role="status" aria-live="polite" title={title} className="flex min-w-0 items-center gap-1.5">
+          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-0.5">
+          {status.kind === "error" && (
+            <button type="button" className={BUTTON} onClick={onRetry}>
+              Retry
+            </button>
+          )}
+          <button
+            type="button"
+            className={BUTTON}
+            onClick={onSaveNow}
+            disabled={status.kind === "saving" || status.kind === "conflict"}
+          >
+            Save now
           </button>
-        )}
-        <button
-          type="button"
-          className={BUTTON}
-          onClick={onSaveNow}
-          disabled={status.kind === "saving" || status.kind === "conflict"}
-        >
-          Save now
-        </button>
-        {storageMode === "server" && (
-          <button type="button" className={BUTTON} onClick={onOpenHistory} aria-label="Version history">
-            <History className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </span>
+          {storageMode === "server" && (
+            <button type="button" className={BUTTON} onClick={onOpenHistory} aria-label="Version history">
+              <History className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </span>
+      </div>
+      {visibleDetail && (
+        <div className="truncate text-[11px] text-red-300">
+          <span>{visibleDetail}</span>
+          {detailHint && <> — <span>{detailHint}</span></>}
+        </div>
+      )}
     </div>
   );
 };

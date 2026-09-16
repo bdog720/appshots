@@ -45,7 +45,7 @@ export const StorageBanners = ({
     <div className="shrink-0">
       {notice.unwritable && (
         <div role="alert" className={`${BAR} bg-amber-500/15 text-amber-200`}>
-          <span>Container storage isn't writable — saving to this browser instead.</span>
+          <span>Couldn't use container storage — saving to this browser instead.</span>
           <button type="button" className={ACTION} onClick={onDismissNotice}>
             Dismiss
           </button>

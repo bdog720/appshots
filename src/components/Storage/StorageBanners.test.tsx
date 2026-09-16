@@ -20,7 +20,7 @@ describe("StorageBanners", () => {
   it("explains unwritable container storage", () => {
     const onDismissNotice = vi.fn();
     render(<StorageBanners {...baseProps} notice={{ unwritable: true, migratedCount: 0 }} onDismissNotice={onDismissNotice} />);
-    expect(screen.getByText("Container storage isn't writable — saving to this browser instead.")).not.toBeNull();
+    expect(screen.getByText("Couldn't use container storage — saving to this browser instead.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onDismissNotice).toHaveBeenCalledTimes(1);
   });
