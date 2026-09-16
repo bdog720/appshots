@@ -110,13 +110,16 @@ export function useProjectPersistence(options: {
   };
 
   /**
-   * Stop holding a project back. If it no longer exists in the editor, its
-   * baseline entry goes too: that entry is what would plan a delete, and
-   * resolving a conflict must never delete the copy the other writer saved.
+   * Stop holding a project back. If a project that was genuinely held no longer
+   * exists in the editor, its baseline entry goes too: that entry is what would
+   * plan a delete, and resolving a conflict must never delete the copy the other
+   * writer saved. Strictly gated on the hold — markSaved releases through here
+   * for every load and restore, and dropping the entry for a project nobody held
+   * would swallow an ordinary delete the user had just asked for.
    */
   const releaseConflict = (projectId: string) => {
-    conflictsRef.current.delete(projectId);
-    if (!latestRef.current.projects.some((project) => project.id === projectId)) {
+    const wasHeld = conflictsRef.current.delete(projectId);
+    if (wasHeld && !latestRef.current.projects.some((project) => project.id === projectId)) {
       baseline().projects.delete(projectId);
     }
     syncConflict();

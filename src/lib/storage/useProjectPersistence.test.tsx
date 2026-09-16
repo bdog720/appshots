@@ -488,6 +488,48 @@ describe("useProjectPersistence", () => {
     expect(deleteProject).toHaveBeenCalledWith("a");
   });
 
+  it("still deletes a project the user removed while a restore was landing", async () => {
+    // No conflict anywhere in this test. markSaved is simply how a load or a
+    // restore hands the editor back its saved copy, and it must not cancel a
+    // delete the user asked for in the meantime — the project would stay in
+    // the container and come back on the next load.
+    const memory = createMemoryStorage();
+    const storage = new BrowserStorage(memory);
+    const pa = project("a");
+    const pb = project("b");
+    await storage.saveProject(pa);
+    await storage.saveProject(pb);
+    await storage.saveMeta("a", ["a", "b"]);
+    const deleteProject = vi.spyOn(storage, "deleteProject");
+
+    const hook = renderHook(
+      ({ projects, activeProjectId }: { projects: Project[]; activeProjectId: string }) =>
+        useProjectPersistence({
+          storage,
+          projects,
+          activeProjectId,
+          initialProjects: [pa, pb],
+          initialActiveProjectId: "a",
+          now: () => 123,
+        }),
+      { initialProps: { projects: [pa, pb], activeProjectId: "a" } },
+    );
+
+    // The user deletes "a" while a restore of it is still on its way back…
+    hook.rerender({ projects: [pb], activeProjectId: "b" });
+    // …and the restored copy lands afterwards.
+    act(() => {
+      hook.result.current.markSaved(project("a", "restored"));
+    });
+    await flushTimers();
+
+    expect(deleteProject).toHaveBeenCalledWith("a");
+    const persisted = JSON.parse(memory.getItem(STORAGE_KEY) ?? "{}") as {
+      projects: Array<{ id: string }>;
+    };
+    expect(persisted.projects.map((p) => p.id)).toEqual(["b"]);
+  });
+
   it("removes a deleted project from browser storage after a forced re-send", async () => {
     const memory = createMemoryStorage();
     const inner = new BrowserStorage(memory);
