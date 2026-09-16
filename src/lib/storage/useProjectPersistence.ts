@@ -323,7 +323,10 @@ export function useProjectPersistence(options: {
         return;
       }
       clearTimer();
-      setStatus({ kind: "saved", at: now() });
+      // No `at`, for the same reason as the settle above: markSaved means
+      // storage already holds this copy — written on the server or in another
+      // tab — so there is no save time from this tick to report.
+      setStatus({ kind: "saved", at: null });
     },
     [flush, delayMs, now],
   );

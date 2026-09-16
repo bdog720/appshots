@@ -183,8 +183,9 @@ describe("EditorProvider storage wiring", () => {
       "Discarded local changes",
     );
     expect(editor.activeProject.name).toBe("Theirs");
-    // Their copy is now the saved one, so nothing is re-sent for it.
-    expect(editor.saveStatus).toEqual({ kind: "saved", at: expect.any(Number) });
+    // Their copy is now the saved one, so nothing is re-sent for it — and the
+    // write happened in the other tab, so this carries no save time.
+    expect(editor.saveStatus).toEqual({ kind: "saved", at: null });
     expect(saveProject).toHaveBeenCalledTimes(1);
   });
 
@@ -207,7 +208,8 @@ describe("EditorProvider storage wiring", () => {
     expect(saveProject.mock.calls[0][0].name).toBe("Pending");
     expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
     expect(editor.activeProject.name).toBe("Restored");
-    expect(editor.saveStatus).toEqual({ kind: "saved", at: expect.any(Number) });
+    // The restore was written by the server, not by a save in this tick.
+    expect(editor.saveStatus).toEqual({ kind: "saved", at: null });
   });
 
   it("has no history outside container mode", async () => {

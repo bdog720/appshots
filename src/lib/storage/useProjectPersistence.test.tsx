@@ -246,7 +246,9 @@ describe("useProjectPersistence", () => {
     });
     await flushTimers();
     expect(saveProject).toHaveBeenCalledTimes(1);
-    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+    // markSaved means storage already holds this copy — written on the server
+    // or in another tab, never in this tick. So: "Saved", with no save time.
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: null });
   });
 
   it("settles the status when markSaved lands before the editor re-renders", async () => {
