@@ -47,6 +47,12 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(evt({ key: "z" }), { isEditable: false })).toBeNull();
     expect(resolveShortcut(evt({ key: "a", ctrlKey: true }), { isEditable: false })).toBeNull();
   });
+
+  it("maps Ctrl/Cmd+S to save, even while typing", () => {
+    expect(resolveShortcut(evt({ key: "s", metaKey: true }), { isEditable: false })).toBe("save");
+    expect(resolveShortcut(evt({ key: "S", ctrlKey: true }), { isEditable: true })).toBe("save");
+    expect(resolveShortcut(evt({ key: "s" }), { isEditable: false })).toBeNull();
+  });
 });
 
 describe("isEditableTarget", () => {

@@ -1,6 +1,6 @@
 /** Editor keyboard shortcuts: pure resolution, no DOM wiring. */
 
-export type ShortcutAction = "undo" | "redo" | "delete" | "export" | "help";
+export type ShortcutAction = "undo" | "redo" | "delete" | "export" | "help" | "save";
 
 export interface ShortcutKeyEvent {
   key: string;
@@ -18,6 +18,9 @@ export function resolveShortcut(
   event: ShortcutKeyEvent,
   { isEditable }: { isEditable: boolean },
 ): ShortcutAction | null {
+  // Save works everywhere, including while typing, so the browser's own
+  // "Save page" dialog never opens.
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") return "save";
   if (isEditable) return null;
 
   const mod = event.ctrlKey || event.metaKey;

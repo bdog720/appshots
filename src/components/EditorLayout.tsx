@@ -7,6 +7,7 @@ import { NarrowScreenNotice } from "./NarrowScreenNotice";
 import { ShortcutsModal } from "./ShortcutsModal";
 import { AgentImportModal } from "./AgentImport/AgentImportModal";
 import { ExportProgressOverlay } from "./ExportProgressOverlay";
+import { StorageBanners } from "./Storage/StorageBanners";
 import { useEditor } from "../context/EditorContext";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
@@ -34,6 +35,13 @@ export const EditorLayout = () => {
     removeDevice,
     removeOverlayImage,
     handleExport,
+    projects,
+    saveNow,
+    saveStatus,
+    startupNotice,
+    dismissStartupNotice,
+    keepMyVersion,
+    loadTheirVersion,
   } = useEditor();
 
   const [showBanner, setShowBanner] = useState(true);
@@ -51,6 +59,7 @@ export const EditorLayout = () => {
     delete: deleteSelection,
     export: handleExport,
     help: () => setIsShortcutsOpen(true),
+    save: () => void saveNow(),
   });
 
   return (
@@ -79,6 +88,18 @@ export const EditorLayout = () => {
           </button>
         </div>
       )}
+      <StorageBanners
+        notice={startupNotice}
+        conflict={saveStatus.kind === "conflict" ? saveStatus : null}
+        conflictProjectName={
+          saveStatus.kind === "conflict"
+            ? (projects.find((project) => project.id === saveStatus.projectId)?.name ?? null)
+            : null
+        }
+        onDismissNotice={dismissStartupNotice}
+        onKeepMine={keepMyVersion}
+        onLoadTheirs={loadTheirVersion}
+      />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />
         <CanvasPreview />
