@@ -8,6 +8,7 @@ import { ShortcutsModal } from "./ShortcutsModal";
 import { AgentImportModal } from "./AgentImport/AgentImportModal";
 import { ExportProgressOverlay } from "./ExportProgressOverlay";
 import { StorageBanners } from "./Storage/StorageBanners";
+import { HistoryPanel } from "./Storage/HistoryPanel";
 import { useEditor } from "../context/EditorContext";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import { GITHUB_REPO_URL } from "../constants";
@@ -25,6 +26,11 @@ export const EditorLayout = () => {
     setIsShortcutsOpen,
     isAgentImportOpen,
     setIsAgentImportOpen,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    listProjectHistory,
+    restoreProjectVersion,
+    activeProjectId,
     activeScreenshot,
     textDefaults,
     setTextDefault,
@@ -129,6 +135,13 @@ export const EditorLayout = () => {
         <AgentImportModal
           isOpen={isAgentImportOpen}
           onClose={() => setIsAgentImportOpen(false)}
+        />
+        <HistoryPanel
+          isOpen={isHistoryOpen}
+          projectId={activeProjectId}
+          onClose={() => setIsHistoryOpen(false)}
+          loadHistory={listProjectHistory}
+          onRestore={restoreProjectVersion}
         />
       </div>
       <ExportProgressOverlay />

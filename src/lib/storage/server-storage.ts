@@ -93,6 +93,16 @@ export class ServerStorage implements ServerProjectStorage {
     return revision === 0 ? { "If-None-Match": "*" } : { "If-Match": `"${revision}"` };
   }
 
+  /**
+   * Records a revision seen for a project, but never lets an older response
+   * (e.g. a save whose reply arrives after a later restore already moved the
+   * revision forward) overwrite a newer one already tracked.
+   */
+  private trackRevision(id: string, revision: number): void {
+    const current = this.revisions.get(id);
+    if (current === undefined || revision > current) this.revisions.set(id, revision);
+  }
+
   /** The cached upload for a data URL, unless it's old enough that the server may have deleted it. */
   private cachedUpload(src: string): CachedUpload | undefined {
     const entry = this.uploads.get(src);
@@ -182,7 +192,7 @@ export class ServerStorage implements ServerProjectStorage {
       return { ok: false, conflict: { revision: conflict.revision, savedAt: conflict.savedAt } };
     }
     const saved = (await (await this.ensureOk(response, "Saving")).json()) as { revision: number };
-    this.revisions.set(project.id, saved.revision);
+    this.trackRevision(project.id, saved.revision);
     return { ok: true };
   }
 
@@ -206,7 +216,7 @@ export class ServerStorage implements ServerProjectStorage {
         // If the page survives (unload cancelled), later saves need the new revision.
         if (!response.ok) return;
         const saved = (await response.json()) as { revision?: unknown };
-        if (typeof saved.revision === "number") this.revisions.set(project.id, saved.revision);
+        if (typeof saved.revision === "number") this.trackRevision(project.id, saved.revision);
       })
       .catch(() => undefined);
     this.pendingUnloadSaves.set(project.id, settled);
@@ -252,7 +262,7 @@ export class ServerStorage implements ServerProjectStorage {
       revision: number;
       project: Project;
     };
-    this.revisions.set(id, stored.revision);
+    this.trackRevision(id, stored.revision);
     return stored.project;
   }
 
@@ -279,7 +289,7 @@ export class ServerStorage implements ServerProjectStorage {
       "Restoring a version",
     );
     const restored = (await response.json()) as { revision: number; project: Project };
-    this.revisions.set(id, restored.revision);
+    this.trackRevision(id, restored.revision);
     return restored.project;
   }
 

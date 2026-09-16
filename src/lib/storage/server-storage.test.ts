@@ -210,6 +210,42 @@ describe("ServerStorage other operations", () => {
     expect(server.projects.get("p")?.revision).toBe(3);
   });
 
+  it("keeps a restored revision even when a slower save's response lands after it", async () => {
+    const server = createFakeServer();
+    let delaySave = false;
+    let releaseSave: (() => void) | undefined;
+    const fetchImpl: FetchLike = async (url, init) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (delaySave && url === "/api/projects/p" && method === "PUT") {
+        const response = await server.fetch(url, init);
+        await new Promise<void>((resolve) => {
+          releaseSave = resolve;
+        });
+        return response;
+      }
+      return server.fetch(url, init);
+    };
+    const storage = new ServerStorage(fetchImpl);
+
+    await storage.saveProject(project("p")); // revision 0 -> 1
+
+    delaySave = true;
+    const delayedSave = storage.saveProject(project("p")); // sends if-match "1"; server moves to 2, response held back
+    await vi.waitFor(() => expect(releaseSave).toBeDefined());
+
+    // A restore completes first, moving the server (and the tracked revision) to 3.
+    await storage.restoreVersion("p", "1757900000000-1");
+
+    // Now the slower save's response (revision 2) arrives.
+    delaySave = false;
+    releaseSave!();
+    expect(await delayedSave).toEqual({ ok: true });
+
+    // The next save must use the restored revision, not the stale one from the slow save.
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-match"]).toBe('"3"');
+  });
+
   it("loads projects in parallel and keeps their order", async () => {
     const server = createFakeServer();
     server.projects.set("a", { revision: 1, project: project("a") });
