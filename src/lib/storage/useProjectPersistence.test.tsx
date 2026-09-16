@@ -218,6 +218,16 @@ describe("useProjectPersistence", () => {
     });
     // An error status here would strand the conflict and silently block every later save.
     expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    // The affordance is still live: a second attempt saves on the same revision.
+    await act(async () => {
+      await hook.result.current.keepMine();
+    });
+    expect(saveProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "mine" }),
+      { baseRevision: 7, pinPrevious: true },
+    );
+    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
   it("resets one project's baseline with markSaved", async () => {
@@ -269,10 +279,33 @@ describe("useProjectPersistence", () => {
     act(() => {
       hook.result.current.markSaved(theirs);
     });
-    expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
+    // A save of the pre-load copy is still in flight, so this is not settled yet.
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
 
     // The superseded save must not re-open the conflict the user just resolved.
     await release({ ok: false, conflict: { revision: 9, savedAt: 80 } });
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
+  });
+
+  it("re-sends the editor's copy when markSaved lands during a save", async () => {
+    const { hook, saveProject } = setup("server");
+    const release = holdNextSave(saveProject);
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "saving" });
+
+    const restored = project("a", "restored");
+    hook.rerender({ projects: [restored, initial[1]], activeProjectId: "a" });
+    act(() => {
+      hook.result.current.markSaved(restored);
+    });
+    await release({ ok: true });
+    // Storage may have applied the pre-load copy last, so "Saved" would be a lie.
+    expect(hook.result.current.status).toEqual({ kind: "dirty" });
+
+    await flushTimers();
+    expect(saveProject).toHaveBeenCalledTimes(2);
+    expect(saveProject.mock.calls[1][0]).toBe(restored);
     expect(hook.result.current.status).toEqual({ kind: "saved", at: 123 });
   });
 
@@ -327,12 +360,16 @@ describe("useProjectPersistence", () => {
   });
 
   it("removes the unload listener on unmount", () => {
-    const { hook, saveProject, saveProjectOnUnload } = setup("browser");
+    const { hook, saveProject } = setup("browser");
+    hook.rerender({ projects: [project("a", "unsaved"), initial[1]], activeProjectId: "a" });
+    // Unmounting writes once; the teardown does not advance the baseline, so a
+    // listener that outlived the hook would write a second time.
     hook.unmount();
+    expect(saveProject).toHaveBeenCalledTimes(1);
+
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
-    expect(saveProject).not.toHaveBeenCalled();
-    expect(saveProjectOnUnload).not.toHaveBeenCalled();
+    expect(saveProject).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(false);
   });
 });

@@ -97,17 +97,20 @@ export function useProjectPersistence(options: {
       // status, re-open a settled conflict, or advance a baseline it no longer owns.
       const generation = generationRef.current;
       const superseded = () => generationRef.current !== generation;
-      const saved = baseline();
-      const { projects: current, activeProjectId: active } = latestRef.current;
-      const plan = planSave(saved, current, active);
-      const forcePin = pinActive && isServerStorage(storage);
-      if (isEmptyPlan(plan) && !forcePin) {
-        setStatus((previous) => (previous.kind === "saved" ? previous : { kind: "saved", at: now() }));
-        return;
-      }
-
-      setStatus({ kind: "saving" });
+      // planSave and the status writes sit inside the try as well: a throw out
+      // here would reject through runExclusive and flush into the un-awaited
+      // `void flush()` as an unhandled rejection.
       try {
+        const saved = baseline();
+        const { projects: current, activeProjectId: active } = latestRef.current;
+        const plan = planSave(saved, current, active);
+        const forcePin = pinActive && isServerStorage(storage);
+        if (isEmptyPlan(plan) && !forcePin) {
+          setStatus((previous) => (previous.kind === "saved" ? previous : { kind: "saved", at: now() }));
+          return;
+        }
+
+        setStatus({ kind: "saving" });
         const toSave = [...plan.save];
         const activeProject = current.find((project) => project.id === active);
         if (forcePin && activeProject && !toSave.some((project) => project.id === active)) {
@@ -267,7 +270,16 @@ export function useProjectPersistence(options: {
     (project: Project) => {
       // Only this project's entry: a sibling whose save never went out has to
       // stay plannable. activeProjectId/order are untouched for the same reason.
-      baseline().projects.set(project.id, project);
+      if (inFlightRef.current) {
+        // A save of the pre-load copy is in flight, and the generation bump
+        // below stops it advancing the baseline — so storage may end up holding
+        // that copy as its last write. Leave this project out of the baseline so
+        // the flush re-sends the editor's copy, rather than reporting "Saved"
+        // over content that no longer matches the editor.
+        baseline().projects.delete(project.id);
+      } else {
+        baseline().projects.set(project.id, project);
+      }
       conflictRef.current = null;
       generationRef.current += 1;
       if (hasChanges()) {
