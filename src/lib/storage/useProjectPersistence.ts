@@ -198,7 +198,20 @@ export function useProjectPersistence(options: {
     if (isServerStorage(storage)) {
       // The keepalive API takes whole projects only, so removals and order
       // settle on the next load instead.
-      for (const project of plan.save) storage.saveProjectOnUnload(project);
+      for (const project of plan.save) {
+        // A live conflict means the server (or another tab/user) holds a
+        // version this tab has never seen; closing the tab must not let this
+        // keepalive save silently pick a winner. Pin the copy it's about to
+        // overwrite so neither is lost — the conflict UI is exactly what
+        // would otherwise let the user choose between them. Scoped to the
+        // conflicted project only, so an ordinary unload doesn't consume a
+        // pinned-retention slot for nothing.
+        if (conflictRef.current?.projectId === project.id) {
+          storage.saveProjectOnUnload(project, { pinPrevious: true });
+        } else {
+          storage.saveProjectOnUnload(project);
+        }
+      }
       return true;
     }
     // BrowserStorage writes before its first await, so these land synchronously.

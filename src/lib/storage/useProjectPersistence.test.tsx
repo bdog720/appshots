@@ -445,6 +445,35 @@ describe("useProjectPersistence", () => {
     expect(browser.saveProjectOnUnload).not.toHaveBeenCalled();
   });
 
+  it("pins the previous version when unloading a project with a live conflict", async () => {
+    // Resyncing on a 409 (a separate fix) makes this reachable: closing the
+    // tab on an unresolved "Changed elsewhere" banner must not let the
+    // keepalive save silently pick a winner between this tab's edits and
+    // whatever is on the server — pinning keeps both for the user to choose
+    // between later.
+    const { hook, saveProject, saveProjectOnUnload } = setup("server");
+    saveProject.mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } });
+    hook.rerender({ projects: [project("a", "mine"), initial[1]], activeProjectId: "a" });
+    await flushTimers();
+    expect(hook.result.current.status).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
+
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(saveProjectOnUnload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "mine" }),
+      { pinPrevious: true },
+    );
+  });
+
+  it("does not pin an ordinary unload save with no live conflict", async () => {
+    const { hook, saveProjectOnUnload } = setup("server");
+    hook.rerender({ projects: [project("a", "unsaved"), initial[1]], activeProjectId: "a" });
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    expect(saveProjectOnUnload).toHaveBeenCalledWith(expect.objectContaining({ name: "unsaved" }));
+  });
+
   it("asks for the leave-page prompt even when the keepalive save can't be sent", async () => {
     const { hook, saveProject, saveProjectOnUnload } = setup("server");
     saveProjectOnUnload.mockReturnValue(false);

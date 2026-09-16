@@ -51,7 +51,7 @@ export interface ServerProjectStorage extends ProjectStorage {
   /** Replace /api/images URLs with data URLs (for self-contained exports). */
   inlineProjectImages(project: Project): Promise<Project>;
   /** Best-effort keepalive save while the page unloads. False when it can't be sent. */
-  saveProjectOnUnload(project: Project): boolean;
+  saveProjectOnUnload(project: Project, options?: { pinPrevious?: boolean }): boolean;
 }
 
 export const isServerStorage = (storage: ProjectStorage): storage is ServerProjectStorage =>

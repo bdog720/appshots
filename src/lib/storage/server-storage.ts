@@ -224,12 +224,15 @@ export class ServerStorage implements ServerProjectStorage {
     return { ok: true };
   }
 
-  saveProjectOnUnload(project: Project): boolean {
+  saveProjectOnUnload(project: Project, options: { pinPrevious?: boolean } = {}): boolean {
     const prepared = mapProjectImagesSync(project, (src) =>
       isDataUrl(src) ? (this.cachedUpload(src)?.url ?? null) : src,
     );
     if (!prepared) return false;
-    const body = JSON.stringify({ project: prepared });
+    const body = JSON.stringify({
+      project: prepared,
+      ...(options.pinPrevious ? { pinPrevious: true } : {}),
+    });
     // Browsers cap keepalive bodies in bytes, so measure UTF-8 bytes, not characters.
     if (new TextEncoder().encode(body).byteLength >= UNLOAD_BODY_LIMIT) return false;
     const revision = this.revisions.get(project.id) ?? 0;
@@ -289,7 +292,15 @@ export class ServerStorage implements ServerProjectStorage {
   async reloadProject(id: string): Promise<Project | null> {
     const ticket = this.nextTicket(id);
     const response = await this.request(projectUrl(id));
-    if (response.status === 404) return null;
+    if (response.status === 404) {
+      // Gone server-side: forget everything tracked for it, so a save right
+      // after (e.g. recreating it) is treated as brand new instead of
+      // conflicting against a now-meaningless revision.
+      this.revisions.delete(id);
+      this.applied.delete(id);
+      this.seq.delete(id);
+      return null;
+    }
     const stored = (await (await this.ensureOk(response, "Loading a project")).json()) as {
       revision: number;
       project: Project;

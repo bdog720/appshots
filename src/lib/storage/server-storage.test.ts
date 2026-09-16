@@ -214,6 +214,20 @@ describe("ServerStorage other operations", () => {
     expect(server.projects.get("p")?.revision).toBe(3);
   });
 
+  it("includes pinPrevious in an unload save when asked (e.g. unloading a live conflict)", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p"));
+    expect(storage.saveProjectOnUnload(project("p"), { pinPrevious: true })).toBe(true);
+    expect(server.calls.at(-1)?.body).toMatchObject({ pinPrevious: true });
+  });
+
+  it("omits pinPrevious from an ordinary unload save", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p"));
+    expect(storage.saveProjectOnUnload(project("p"))).toBe(true);
+    expect(server.calls.at(-1)?.body).not.toHaveProperty("pinPrevious");
+  });
+
   it("keeps a restored revision even when a slower save's response lands after it", async () => {
     const server = createFakeServer();
     let delaySave = false;
@@ -282,6 +296,20 @@ describe("ServerStorage other operations", () => {
     // save succeeds on the first try instead of looping through more 409s.
     expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
     expect(server.calls.at(-1)?.headers["if-match"]).toBe('"2"');
+  });
+
+  it("clears revision tracking when reloadProject finds the project already gone", async () => {
+    const { server, storage } = setup();
+    await storage.saveProject(project("p")); // tracked -> 1
+    server.projects.delete("p"); // e.g. deleted from another client
+
+    expect(await storage.reloadProject("p")).toBeNull();
+
+    // A recreate must be treated as brand new, not conflict against the stale
+    // tracked revision (which would otherwise cost a round trip and a
+    // spurious conflict banner before self-correcting).
+    expect(await storage.saveProject(project("p"))).toEqual({ ok: true });
+    expect(server.calls.at(-1)?.headers["if-none-match"]).toBe("*");
   });
 
   it("clears revision tracking on delete so a recreated project starts fresh", async () => {

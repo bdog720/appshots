@@ -209,7 +209,10 @@ describe("EditorProvider storage wiring", () => {
     // Belt-and-braces even on the happy path: the in-memory copy is pinned
     // directly rather than trusting that the save above already reached the
     // server (see the conflict/error cases below, where it hasn't).
-    expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({ name: "Pending" }), "Before restore");
+    expect(addHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Pending" }),
+      "Before restore (unsaved edits)",
+    );
     expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
     expect(editor.activeProject.name).toBe("Restored");
     // The restore was written by the server, not by a save in this tick.
@@ -273,7 +276,13 @@ describe("EditorProvider storage wiring", () => {
       await editor.restoreProjectVersion("1757900000000-3");
     });
 
-    expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({ name: "Mine" }), "Before restore");
+    // Distinct from the server's own auto-pinned "Before restore" entry (the
+    // stale server copy) so the row holding the user's actual unsaved edits
+    // — the one that matters here — can be told apart in the history list.
+    expect(addHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Mine" }),
+      "Before restore (unsaved edits)",
+    );
     expect(restoreVersion).toHaveBeenCalledWith("a", "1757900000000-3");
     expect(editor.activeProject.name).toBe("Restored");
   });
@@ -284,6 +293,35 @@ describe("EditorProvider storage wiring", () => {
 
     await expect(editor.restoreProjectVersion("1757900000000-3")).rejects.toThrow("boom");
     expect(restoreVersion).not.toHaveBeenCalled();
+  });
+
+  it("throws rather than restoring without pinning when the active project can't be found locally", async () => {
+    // Defensive guard: restoreProjectVersion must never silently skip its
+    // safety-net pin just because the id it's looking for isn't there. This
+    // constructs that inconsistent state directly (bypassing the normal
+    // prepareInitialState validation, which never lets activeProjectId point
+    // at a missing project) since the app doesn't otherwise reach it today.
+    const mocks = createStorage("server");
+    // Normalized (valid) projects, but with activeProjectId overridden after
+    // the fact — prepareInitialState itself never lets that point at a
+    // missing project, so this bypasses it deliberately.
+    const normalized = prepareInitialState({
+      projects: [legacyProject("a"), legacyProject("b")],
+      activeProjectId: "a",
+    });
+    render(
+      <EditorProvider
+        storage={mocks.storage}
+        initialState={{ ...normalized, activeProjectId: "missing" }}
+        startupNotice={{ unwritable: false, migratedCount: 0 }}
+      >
+        <Probe />
+      </EditorProvider>,
+    );
+
+    await expect(editor.restoreProjectVersion("1757900000000-3")).rejects.toThrow();
+    expect(mocks.addHistory).not.toHaveBeenCalled();
+    expect(mocks.restoreVersion).not.toHaveBeenCalled();
   });
 
   it("doesn't pull the user back when they switch projects mid-restore", async () => {
