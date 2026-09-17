@@ -7,7 +7,7 @@
 # Change the host port by setting BREEZEL_PORT, e.g.:
 #   BREEZEL_PORT=3000 docker compose up -d --build
 #
-# Projects are stored in the "appshots-data" volume and survive rebuilds.
+# Projects are stored in the "breezel-data" volume and survive rebuilds.
 
 services:
   breezel:
@@ -17,12 +17,11 @@ services:
     ports:
       - "${BREEZEL_PORT:-${APPSHOTS_PORT:-8080}}:80"
     volumes:
-      - appshots-data:/data
+      - breezel-data:/data
     # Require a password (recommended if the port is reachable beyond your LAN):
     # environment:
     #   BREEZEL_PASSWORD: change-me
     restart: unless-stopped
 
 volumes:
-  # Keeps its pre-rename name so existing installs find their projects.
-  appshots-data:
+  breezel-data:

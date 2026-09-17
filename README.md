@@ -169,7 +169,13 @@ In **Dockge**, create a new Compose stack, paste the above, and deploy. Pull upd
 - **Backups:** copy the volume (e.g. `docker run --rm -v breezel-data:/data -v "$PWD":/backup alpine tar czf /backup/breezel-data.tgz -C /data .`), or use **Export Project** for individual projects.
 - **Permissions:** the server runs as the `bun` user. If you bind-mount a host folder instead of a named volume, make sure that user can write to it, or Breezel falls back to browser storage and shows a warning.
 - **Upgrading:** when you first open a container that has no projects, Breezel moves the projects saved in that browser into it. The browser copy is kept as a backup.
-- **Coming from AppShots:** existing installs keep working. The server still reads `APPSHOTS_PASSWORD`, `APPSHOTS_DATA_DIR` and `APPSHOTS_DIST_DIR` and logs a note asking you to rename them to `BREEZEL_*`. Keep your volume name as it is (for example `appshots-data`) so the container finds your projects. Old `.appshots.json` backups and agent bundles with `appshots.json` still import.
+- **Coming from AppShots:** existing installs keep working. The server still reads `APPSHOTS_PASSWORD`, `APPSHOTS_DATA_DIR` and `APPSHOTS_DIST_DIR` and logs a note asking you to rename them to `BREEZEL_*`. If your stack mounts a volume such as `appshots-data`, keep that name and your projects stay put. If you switch to this repo's `docker-compose.yml`, copy the old volume into the new one first (run `docker volume ls` to see the real names; compose adds the project folder as a prefix):
+
+  ```bash
+  docker run --rm -v appshots_appshots-data:/from -v breezel_breezel-data:/to alpine cp -a /from/. /to/
+  ```
+
+  Old `.appshots.json` backups and agent bundles with `appshots.json` still import.
 
 ## 🛠️ Tech Stack
 
