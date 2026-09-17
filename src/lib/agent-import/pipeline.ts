@@ -21,8 +21,8 @@ export type ReadImage = (file: File) => Promise<LoadedImage>;
 export interface PipelineOptions {
   readImage: ReadImage;
   generateId: () => string;
-  /** Characters already persisted (e.g. JSON.stringify(projects).length). */
-  existingStorageChars: number;
+  /** Characters already in browser storage; null when projects are stored in the container. */
+  existingStorageChars: number | null;
 }
 
 export type PipelineResult =
@@ -67,7 +67,8 @@ export const runAgentImport = async (
       bundleImageNames: [...bundle.images.values()].map((file) => file.name),
       generateId,
     });
-    const storageWarning = checkStorageBudget(existingStorageChars, project);
+    const storageWarning =
+      existingStorageChars === null ? null : checkStorageBudget(existingStorageChars, project);
     return { ok: true, project, warnings, storageWarning };
   } catch (error) {
     if (error instanceof ImportError) return { ok: false, errors: error.issues };

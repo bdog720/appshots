@@ -19,11 +19,17 @@ export interface BackgroundSettings {
   gradientTo?: string;
 }
 
-export const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
+/**
+ * Frozen: a project with no background default of its own is handed this exact
+ * object rather than a copy (see `backgroundDefaultsOf` in EditorContext), so a
+ * mutation here would leak into every such project — and the save planner's
+ * reference compare would never notice.
+ */
+export const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = Object.freeze({
   backgroundMode: "solid",
   backgroundColor: "#8b5cf6",
   gradientPresetId: null,
-};
+});
 
 type GradientResolvable = Pick<
   BackgroundSettings,

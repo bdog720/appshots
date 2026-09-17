@@ -16,6 +16,7 @@ interface ShortcutsModalProps {
 }
 
 const SHORTCUTS: { keys: string; label: string }[] = [
+  { keys: "Ctrl / ⌘ + S", label: "Save now" },
   { keys: "Ctrl / ⌘ + Z", label: "Undo" },
   { keys: "Ctrl / ⌘ + Shift + Z", label: "Redo" },
   { keys: "Delete / Backspace", label: "Remove the selected device or overlay" },

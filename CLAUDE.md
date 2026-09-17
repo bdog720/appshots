@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A **client-only** SPA (React 19 + TypeScript + Vite, run with Bun) — a drag-and-drop editor for generating App Store / Play Store screenshots with realistic device frames. There is **no backend, no auth, and no network API**; all state persists to `localStorage`.
+A React 19 + TypeScript + Vite app (run with Bun) — a drag-and-drop editor for generating App Store / Play Store screenshots with realistic device frames. In the Docker image a small dependency-free Bun server (`server/`) serves the app and a storage API; projects save to the container's `/data` volume. Without that API (`bun run dev`, static hosting) projects save to `localStorage`.
 
 > The repo-root `AGENTS.md` is stale boilerplate from an unrelated JWT/auth template (TanStack Query/Form, an API client, protected routes). None of that exists here — ignore it.
 
@@ -13,6 +13,7 @@ A **client-only** SPA (React 19 + TypeScript + Vite, run with Bun) — a drag-an
 ```bash
 bun install                                         # install deps
 bun run dev                                          # dev server → http://localhost:5173
+bun run dev:server                                   # storage API on :3000 (Vite proxies /api to it)
 bun run build                                        # vite build THEN tsc — build fails on any type error
 bun run test                                         # full Vitest suite, once
 bunx vitest run src/lib/device-overflow.test.ts      # single file
@@ -24,7 +25,7 @@ Tests are Vitest + jsdom + Testing Library, colocated as `*.test.ts(x)`.
 
 ## Architecture
 
-**State model:** `Project → Screenshot[] → DeviceInstance[]` (types in `src/types/index.ts`), owned by `src/context/EditorContext.tsx` — the single source of truth. Persistence is `src/lib/useLocalStorage.ts`. A `DeviceInstance` references a `DeviceSpec` by `deviceId` and carries its own image, color, transform, and 3D angles, so one screenshot holds multiple independently-styled devices.
+**State model:** `Project → Screenshot[] → DeviceInstance[]` (types in `src/types/index.ts`), owned by `src/context/EditorContext.tsx` — the single source of truth. Persistence goes through a `ProjectStorage` (`src/lib/storage/`) chosen at startup — see **Storage** below. A `DeviceInstance` references a `DeviceSpec` by `deviceId` and carries its own image, color, transform, and 3D angles, so one screenshot holds multiple independently-styled devices.
 
 **Two rendering pipelines that must stay pixel-identical** — this is the load-bearing fact of the codebase:
 
@@ -41,7 +42,14 @@ Tests are Vitest + jsdom + Testing Library, colocated as `*.test.ts(x)`.
 - `src/lib/device-platform.ts` → `isAndroidDevice(id)` (`samsung-` / `pixel-` prefixes) and `isAndroidTablet(id)`. Android ⇒ punch-hole camera + right-side buttons; Apple ⇒ Dynamic Island/notch + iPhone buttons.
 - `hasIsland` ⇒ Dynamic Island; else `notchWidth > 0` ⇒ notch; else no top cutout.
 
-**Cross-screen overflow:** `src/lib/device-overflow.ts` computes a device dragged past a screenshot edge continuing into the neighbor; both preview and export render via `getRenderableDevicesForScreenshot`, so overflow survives export. `src/lib/device-instances.ts` normalizes legacy/older persisted shapes — keep it backward-compatible; real users have projects in `localStorage`.
+**Cross-screen overflow:** `src/lib/device-overflow.ts` computes a device dragged past a screenshot edge continuing into the neighbor; both preview and export render via `getRenderableDevicesForScreenshot`, so overflow survives export. `src/lib/device-instances.ts` normalizes legacy/older persisted shapes — keep it backward-compatible; real users have projects in container storage or `localStorage` (see **Storage** below).
+
+## Storage
+
+- `src/routes/index.tsx` → `bootstrapEditor` picks storage via `GET /api/health` (`resolveStorage`): `ServerStorage` when the container reports writable storage, otherwise `BrowserStorage`. First run against an empty container migrates browser projects (`migrate.ts`).
+- `EditorProvider` receives `storage` + `initialState`; `useProjectPersistence` autosaves (1 s debounce), exposes save status / Save now / conflict actions. Don't write to `localStorage` or `fetch` projects directly — go through `ProjectStorage`.
+- Server storage saves images as `/api/images/<sha256>.<ext>` URLs (uploaded from data URLs on save); `Export Project` inlines them again. Project shapes are otherwise identical in both modes and still pass through `normalizeProject` on load.
+- `server/`: `validation.ts`, `history.ts` (pure rules), `store.ts` (`FileStore`, atomic writes, revisions, history, image GC), `api.ts` (`handleRequest`, tested with Vitest), `main.ts` (`Bun.serve` only). Server code uses Web APIs + `node:` built-ins, no npm deps; it's type-checked by `tsc -p server`.
 
 ## Adding a device (the common task)
 

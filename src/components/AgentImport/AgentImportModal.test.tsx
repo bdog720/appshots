@@ -41,7 +41,19 @@ describe("AgentImportModal", () => {
     applyAgentImport.mockReset();
     runAgentImportMock.mockReset();
     Object.assign(navigator, { clipboard: { writeText } });
-    useEditorMock.mockReturnValue({ projects: [], applyAgentImport });
+    useEditorMock.mockReturnValue({ projects: [], applyAgentImport, storageMode: "browser" });
+  });
+
+  it("doesn't measure browser storage when projects live in the container", async () => {
+    useEditorMock.mockReturnValue({ projects: [], applyAgentImport, storageMode: "server" });
+    runAgentImportMock.mockResolvedValue({ ok: true, project, warnings: [], storageWarning: null });
+    render(<AgentImportModal isOpen onClose={vi.fn()} />);
+    pickFiles();
+    await screen.findByText("Habitly");
+    expect(runAgentImportMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ existingStorageChars: null }),
+    );
   });
 
   it("renders nothing when closed", () => {

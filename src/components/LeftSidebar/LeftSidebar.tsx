@@ -17,6 +17,7 @@ import { SidebarHeader } from "./SidebarHeader";
 import { DeviceSection } from "./DeviceSection";
 import { ExportSection } from "./ExportSection";
 import { ProjectSwitcher } from "../ProjectSwitcher";
+import { SaveIndicator } from "../Storage/SaveIndicator";
 import { STYLES } from "./constants";
 
 /**
@@ -39,6 +40,13 @@ export const LeftSidebar = () => {
     setExportSizeId,
     handleExport,
     screenshots,
+    storageMode,
+    saveStatus,
+    saveConflict,
+    activeProjectId,
+    saveNow,
+    retrySave,
+    setIsHistoryOpen,
   } = useEditor();
 
   // Handle device selection with default color
@@ -54,6 +62,15 @@ export const LeftSidebar = () => {
       {/* Project Switcher */}
       <div className="px-4 pb-4 border-b border-zinc-800">
         <ProjectSwitcher />
+        <SaveIndicator
+          status={saveStatus}
+          conflict={saveConflict}
+          activeProjectId={activeProjectId}
+          storageMode={storageMode}
+          onSaveNow={() => void saveNow()}
+          onRetry={() => void retrySave()}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+        />
       </div>
 
       <div className={STYLES.content}>

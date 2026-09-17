@@ -6,6 +6,8 @@
 #
 # Change the host port by setting APPSHOTS_PORT, e.g.:
 #   APPSHOTS_PORT=3000 docker compose up -d --build
+#
+# Projects are stored in the "appshots-data" volume and survive rebuilds.
 
 services:
   appshots:
@@ -14,4 +16,12 @@ services:
     container_name: appshots
     ports:
       - "${APPSHOTS_PORT:-8080}:80"
+    volumes:
+      - appshots-data:/data
+    # Require a password (recommended if the port is reachable beyond your LAN):
+    # environment:
+    #   APPSHOTS_PASSWORD: change-me
     restart: unless-stopped
+
+volumes:
+  appshots-data:

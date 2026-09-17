@@ -50,7 +50,7 @@ AppShots lets mobile developers and marketers design polished app store screensh
 
 ### Project Management
 - Multiple projects: create, rename, switch, delete
-- Auto-save to localStorage across sessions
+- Auto-save across sessions — to the container's storage API when run as a Docker image, to the browser's localStorage otherwise
 - Reset to defaults
 
 ### Export
@@ -84,7 +84,7 @@ AppShots lets mobile developers and marketers design polished app store screensh
 
 ## Architecture
 
-AppShots is a single-page application. All state is managed client-side with React Context (EditorContext) and persisted to localStorage.
+AppShots is a single-page application. All UI state is managed client-side with React Context (EditorContext). The Docker image includes an optional dependency-free Bun server that persists projects, images and version history to a `/data` volume; without it (e.g. `bun run dev`, static hosting), state persists to the browser's localStorage instead.
 
 ### Key Modules
 - `EditorContext` — Global editor state: active project, screenshots, device selection, font settings
@@ -127,10 +127,10 @@ AppShots is a single-page application. All state is managed client-side with Rea
 
 ## API / Integration Points
 
-AppShots is entirely client-side. There are no backend APIs. Data flows:
+The editor itself is entirely client-side. Data flows:
 - Google Fonts API — loads font metadata and stylesheets
 - Canvas API — renders and exports screenshots as PNG
-- localStorage — persists projects and settings
+- Storage — projects and settings persist via a storage API (Docker image, container's `/data` volume) or localStorage (browser-only)
 - JSZip — bundles multiple screenshots into a ZIP file for download
 
 ## Running Locally

@@ -25,3 +25,5 @@ LICENSE
 *.log
 coverage
 .DS_Store
+
+.appshots-data
