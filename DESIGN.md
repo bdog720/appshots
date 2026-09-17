@@ -1,6 +1,6 @@
 # DESIGN.md
 
-> The AppShots editor design system. Documents the current implementation and the intended token direction. Applies to the **editor chrome only** — never to the device-frame / export rendering pipelines, which are pixel-matched product output.
+> The Breezel editor design system. Documents the current implementation and the intended token direction. Applies to the **editor chrome only** — never to the device-frame / export rendering pipelines, which are pixel-matched product output.
 
 ## Foundations
 

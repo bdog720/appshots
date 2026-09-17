@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A React 19 + TypeScript + Vite app (run with Bun) — a drag-and-drop editor for generating App Store / Play Store screenshots with realistic device frames. In the Docker image a small dependency-free Bun server (`server/`) serves the app and a storage API; projects save to the container's `/data` volume. Without that API (`bun run dev`, static hosting) projects save to `localStorage`.
+Breezel: a React 19 + TypeScript + Vite app (run with Bun) — a drag-and-drop editor for generating App Store / Play Store screenshots with realistic device frames. In the Docker image a small dependency-free Bun server (`server/`) serves the app and a storage API; projects save to the container's `/data` volume. Without that API (`bun run dev`, static hosting) projects save to `localStorage`.
 
 > The repo-root `AGENTS.md` is stale boilerplate from an unrelated JWT/auth template (TanStack Query/Form, an API client, protected routes). None of that exists here — ignore it.
 
@@ -62,14 +62,16 @@ Tests are Vitest + jsdom + Testing Library, colocated as `*.test.ts(x)`.
 
 ## Agent import
 
-`src/lib/agent-import/` turns an agent-written `appshots.json` + screenshots into an ordinary `Project`: `bundle.ts` (files/folder/zip) → `schema.ts` (Zod) → `compile.ts`, orchestrated by `pipeline.ts` and surfaced by `components/AgentImport/AgentImportModal.tsx` (Project menu → Import from agent).
+`src/lib/agent-import/` turns an agent-written `breezel.json` + screenshots into an ordinary `Project`: `bundle.ts` (files/folder/zip) → `schema.ts` (Zod) → `compile.ts`, orchestrated by `pipeline.ts` and surfaced by `components/AgentImport/AgentImportModal.tsx` (Project menu → Import from agent).
 
 - `schema.ts` is the single source of truth for manifest types, validation errors and the published JSON Schema. Keep it free of `.transform()` (`z.toJSONSchema` can't represent transforms); normalize in `compile.ts`.
-- `docs/agent-import/PROMPT.md`, `appshots-import.schema.json` and `example/appshots.json` are **generated**. After changing the schema, devices, fonts, brand styles, layout presets or export sizes, run `bun run gen:agent-docs`; `prompt.test.ts` fails on stale docs.
+- `docs/agent-import/PROMPT.md`, `breezel-import.schema.json` and `example/breezel.json` are **generated**. After changing the schema, devices, fonts, brand styles, layout presets or export sizes, run `bun run gen:agent-docs`; `prompt.test.ts` fails on stale docs.
 - Imported headline/subheadline HTML is untrusted — it must go through `sanitize.ts`.
 - Layout presets live in `src/lib/layout-presets.ts`, shared with the editor's Position Presets panel (which applies only the device part).
 
 ## Constraints & gotchas
+
+- ⚠️ The app was called AppShots before it became Breezel. Keep reading the legacy names: `APPSHOTS_*` env vars (`server/config.ts`), `appshots-project` backups (`project-io.ts`), `appshots.json` / `appshots-import` manifests (`bundle.ts`, `schema.ts`), and the `appshots-*` localStorage keys (`migrate.ts`, `onboarding.ts`), which stay unrenamed on purpose.
 
 - ❌ Don't change a device's visuals in only one pipeline — preview and `export-utils.ts` must match.
 - ❌ Don't break `device-instances.ts` normalization or bump persisted shapes without a migration — it silently corrupts saved user projects.
