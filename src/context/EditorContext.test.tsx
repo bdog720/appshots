@@ -157,6 +157,19 @@ describe("EditorProvider storage wiring", () => {
     expect(saveProject.mock.calls[0][0].name).toBe("Renamed");
   });
 
+  it("writes nothing and adds no undo step for an update that changes nothing", async () => {
+    // The headline editor reports its HTML on blur even when nothing was typed.
+    const { saveProject } = renderEditor();
+    const before = editor.screenshots;
+    act(() => {
+      editor.updateActiveScreenshot({ headline: editor.activeScreenshot.headline });
+    });
+    await settle();
+    expect(editor.screenshots).toBe(before);
+    expect(editor.canUndo).toBe(false);
+    expect(saveProject).not.toHaveBeenCalled();
+  });
+
   it("autosaves only the project that changed", async () => {
     const { saveProject } = renderEditor();
     act(() => {
