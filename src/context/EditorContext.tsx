@@ -456,19 +456,21 @@ export interface StartupNotice {
 export interface InitialEditorState {
   projects: Project[];
   activeProjectId: string;
+  /** The default project made up for an empty store, which storage doesn't hold. */
+  unstoredProjectIds: string[];
 }
 
 export const prepareInitialState = (loaded: {
   projects: Project[];
   activeProjectId: string | null;
 }): InitialEditorState => {
-  const projects =
-    loaded.projects.length > 0 ? loaded.projects.map(normalizeProject) : [createDefaultProject()];
+  const stored = loaded.projects.length > 0;
+  const projects = stored ? loaded.projects.map(normalizeProject) : [createDefaultProject()];
   const activeProjectId =
     loaded.activeProjectId && projects.some((p) => p.id === loaded.activeProjectId)
       ? loaded.activeProjectId
       : projects[0].id;
-  return { projects, activeProjectId };
+  return { projects, activeProjectId, unstoredProjectIds: stored ? [] : [projects[0].id] };
 };
 
 export const EditorProvider = ({
@@ -599,6 +601,7 @@ export const EditorProvider = ({
     activeProjectId,
     initialProjects: initialState.projects,
     initialActiveProjectId: initialState.activeProjectId,
+    unstoredProjectIds: initialState.unstoredProjectIds,
   });
 
   // Undo / redo over the active project's content. Rapid edits (drags, slider

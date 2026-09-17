@@ -125,6 +125,38 @@ describe("EditorProvider storage wiring", () => {
     expect(editor.saveStatus).toEqual({ kind: "saved", at: null });
   });
 
+  it("writes nothing when an empty store opens on the default project", async () => {
+    // Saving it would make an empty container look used and block migration.
+    const { saveProject, saveMeta } = renderEditor({ projects: [], activeProjectId: null });
+    await settle();
+    expect(saveProject).not.toHaveBeenCalled();
+    expect(saveMeta).not.toHaveBeenCalled();
+  });
+
+  it("opens a created project and saves the untouched default project with it", async () => {
+    const { saveProject, saveMeta } = renderEditor({ projects: [], activeProjectId: null });
+    const defaultId = editor.activeProjectId;
+    act(() => {
+      editor.createProject("Second");
+    });
+    const created = editor.projects.find((project) => project.name === "Second");
+    expect(editor.activeProjectId).toBe(created?.id);
+
+    await settle();
+    expect(saveProject.mock.calls.map(([project]) => project.id)).toEqual([defaultId, created?.id]);
+    expect(saveMeta).toHaveBeenLastCalledWith(created?.id, [defaultId, created?.id]);
+  });
+
+  it("saves the default project on its own once it's edited", async () => {
+    const { saveProject } = renderEditor({ projects: [], activeProjectId: null });
+    act(() => {
+      editor.renameProject(editor.activeProjectId, "Renamed");
+    });
+    await settle();
+    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(saveProject.mock.calls[0][0].name).toBe("Renamed");
+  });
+
   it("autosaves only the project that changed", async () => {
     const { saveProject } = renderEditor();
     act(() => {

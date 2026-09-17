@@ -43,22 +43,30 @@ export const planSave = (
   activeProjectId: string,
   /** Ids to save even when their content matches the baseline. */
   forceSave?: ReadonlySet<string>,
+  /**
+   * Ids in the baseline that storage doesn't hold yet: the default project an
+   * empty store opens on. Written along with any other change, never on their
+   * own, so merely opening the editor leaves an empty store empty.
+   */
+  unstored?: ReadonlySet<string>,
 ): SavePlan => {
-  const save = projects.filter((project) => {
+  const needsSave = (project: Project) => {
     // The baseline can be up to date while storage is not — see markSaved's
     // in-flight branch. Only `save` is affected: `remove` and `meta` still come
     // from the baseline alone.
     if (forceSave?.has(project.id)) return true;
     const saved = previous.projects.get(project.id);
     return !saved || !sameProjectContent(saved, project);
-  });
+  };
   const currentIds = new Set(projects.map((project) => project.id));
-  const remove = [...previous.projects.keys()].filter((id) => !currentIds.has(id));
+  const remove = [...previous.projects.keys()].filter((id) => !currentIds.has(id) && !unstored?.has(id));
   const order = projects.map((project) => project.id);
   const meta =
     previous.activeProjectId !== activeProjectId ||
     previous.order.length !== order.length ||
     previous.order.some((id, index) => id !== order[index]);
+  const hasWork = remove.length > 0 || meta || projects.some(needsSave);
+  const save = projects.filter((project) => needsSave(project) || (hasWork && unstored?.has(project.id)));
   return { save, remove, meta };
 };
 

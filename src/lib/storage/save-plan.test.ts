@@ -53,6 +53,24 @@ describe("planSave", () => {
     expect(plan.remove).toEqual(["a"]);
   });
 
+  it("saves an unstored project only alongside other work", () => {
+    const a = project("a");
+    const b = project("b");
+    const previous = snapshotOf([a], "a");
+    const unstored = new Set(["a"]);
+    expect(isEmptyPlan(planSave(previous, [a], "a", undefined, unstored))).toBe(true);
+    const plan = planSave(previous, [a, b], "b", undefined, unstored);
+    expect(plan.save.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(plan.meta).toBe(true);
+  });
+
+  it("never removes an unstored project, because storage doesn't have it", () => {
+    const a = project("a");
+    const b = project("b");
+    const previous = snapshotOf([a, b], "a");
+    expect(planSave(previous, [b], "b", undefined, new Set(["a"]))).toEqual({ save: [], remove: [], meta: true });
+  });
+
   it("flags meta when the active project or order changes", () => {
     const a = project("a");
     const b = project("b");

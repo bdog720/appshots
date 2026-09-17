@@ -55,6 +55,8 @@ export function useProjectPersistence(options: {
   activeProjectId: string;
   initialProjects: Project[];
   initialActiveProjectId: string;
+  /** Initial projects storage doesn't hold yet; see planSave's `unstored`. */
+  unstoredProjectIds?: string[];
   delayMs?: number;
   now?: () => number;
 }): ProjectPersistence {
@@ -88,6 +90,8 @@ export function useProjectPersistence(options: {
    * dropping a key to force a save would drop it from delete detection too.
    */
   const forceSaveRef = useRef<Set<string>>(new Set());
+  /** Shrinks as those projects reach storage; never grows. */
+  const unstoredRef = useRef<Set<string>>(new Set(options.unstoredProjectIds));
   const [status, setStatus] = useState<SaveStatus>({ kind: "saved", at: null });
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
 
@@ -132,6 +136,7 @@ export function useProjectPersistence(options: {
         latestRef.current.projects,
         latestRef.current.activeProjectId,
         forceSaveRef.current,
+        unstoredRef.current,
       ),
     );
 
@@ -169,7 +174,7 @@ export function useProjectPersistence(options: {
         // otherwise keep the editor dirty forever.
         const present = new Set(current.map((project) => project.id));
         for (const id of forceSaveRef.current) if (!present.has(id)) forceSaveRef.current.delete(id);
-        const plan = planSave(saved, current, active, forceSaveRef.current);
+        const plan = planSave(saved, current, active, forceSaveRef.current, unstoredRef.current);
         // A conflict holds back its own project, not the editor: the siblings
         // keep saving, because stopping them leaves their edits in this tab
         // only with nothing on screen saying so.
@@ -210,6 +215,7 @@ export function useProjectPersistence(options: {
           // Baseline advances only for the projects that actually saved.
           saved.projects.set(project.id, project);
           forceSaveRef.current.delete(project.id);
+          unstoredRef.current.delete(project.id);
         }
         for (const id of toRemove) {
           await storage.deleteProject(id);
@@ -256,7 +262,7 @@ export function useProjectPersistence(options: {
    */
   const writeBeforeTeardown = (): boolean => {
     const { projects: current, activeProjectId: active } = latestRef.current;
-    const plan = planSave(baseline(), current, active, forceSaveRef.current);
+    const plan = planSave(baseline(), current, active, forceSaveRef.current, unstoredRef.current);
     if (isEmptyPlan(plan)) return false;
     if (isServerStorage(storage)) {
       // The keepalive API takes whole projects only, so removals and order
@@ -371,6 +377,7 @@ export function useProjectPersistence(options: {
           return;
         }
         baseline().projects.set(mine.id, mine);
+        unstoredRef.current.delete(mine.id);
         releaseConflict(mine.id);
         generationRef.current += 1;
       } catch (error) {
@@ -390,6 +397,8 @@ export function useProjectPersistence(options: {
       // Only this project's entry: a sibling whose save never went out has to
       // stay plannable. activeProjectId/order are untouched for the same reason.
       baseline().projects.set(project.id, project);
+      // Storage holds this copy now, so it's plannable like any other.
+      unstoredRef.current.delete(project.id);
       if (inFlightRef.current) {
         // A save of the pre-load copy is in flight, and the generation bump
         // below stops it advancing the baseline — so storage may end up holding
