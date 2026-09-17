@@ -23,6 +23,7 @@ import { AppearanceSection } from "./AppearanceSection";
 import { OverlayImagesSection } from "./OverlayImagesSection";
 import { DesignCheckSection } from "./DesignCheckSection";
 import { BrandGuideSection } from "./BrandGuideSection";
+import { IconLibrarySection } from "./IconLibrarySection";
 import { STYLES } from "./constants";
 
 /**
@@ -45,6 +46,7 @@ export const RightSidebar = () => {
     resetActiveScreenshotBackground,
     fileInputRef,
     handleFileUpload,
+    addIcon,
     overlayImageInputRef,
     addOverlayImage,
     selectedElement,
@@ -123,6 +125,8 @@ export const RightSidebar = () => {
           onResetScreenshotBackground={resetActiveScreenshotBackground}
           onFixTextColor={(color) => setActiveScreenshotText("textColor", color)}
         />
+
+        <IconLibrarySection onAddIcon={addIcon} />
 
         <OverlayImagesSection
           screenshot={activeScreenshot}

@@ -178,6 +178,7 @@ interface EditorContextType {
   handleElementMouseMove: (e: MouseEvent) => void;
   handleElementMouseUp: () => void;
   addOverlayImage: (file: File) => void;
+  addIcon: (src: string, name: string) => void;
   removeOverlayImage: (imageId: string) => void;
   updateOverlayImageSize: (imageId: string, widthPercent: number) => void;
   updateOverlayImageLayer: (imageId: string, layer: "behind" | "front") => void;
@@ -1091,44 +1092,51 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [isDragging, handleElementMouseMove, handleElementMouseUp]);
 
+  const addOverlayImageSource = (src: string, name?: string) => {
+    const img = new Image();
+    img.onload = () => {
+      const aspectRatio = img.width / img.height || 1;
+      const newImage: ImageOverlay = {
+        id: generateId(),
+        src,
+        name,
+        x: 50,
+        y: 50,
+        width: 30,
+        height: 30 / aspectRatio,
+        layer: "front",
+        rotation: 0,
+        shadow: {
+          enabled: false,
+          color: "#000000",
+          blur: 20,
+          offsetX: 0,
+          offsetY: 10,
+        },
+      };
+      updateActiveScreenshot({
+        overlayImages: [...activeScreenshot.overlayImages, newImage],
+      });
+      setSelectedElement({
+        type: "image",
+        id: newImage.id,
+        screenshotId: activeScreenshot.id,
+      });
+    };
+    img.src = src;
+  };
+
   const addOverlayImage = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result;
-      if (typeof result === "string") {
-        const img = new Image();
-        img.onload = () => {
-          const aspectRatio = img.width / img.height;
-          const newImage: ImageOverlay = {
-            id: generateId(),
-            src: result,
-            x: 50,
-            y: 50,
-            width: 30,
-            height: 30 / aspectRatio,
-            layer: "front",
-            rotation: 0,
-            shadow: {
-              enabled: false,
-              color: "#000000",
-              blur: 20,
-              offsetX: 0,
-              offsetY: 10,
-            },
-          };
-          updateActiveScreenshot({
-            overlayImages: [...activeScreenshot.overlayImages, newImage],
-          });
-          setSelectedElement({
-            type: "image",
-            id: newImage.id,
-            screenshotId: activeScreenshot.id,
-          });
-        };
-        img.src = result;
-      }
+      if (typeof result === "string") addOverlayImageSource(result);
     };
     reader.readAsDataURL(file);
+  };
+
+  const addIcon = (src: string, name: string) => {
+    addOverlayImageSource(src, name);
   };
 
   const removeOverlayImage = (imageId: string) => {
@@ -1472,6 +1480,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         handleElementMouseMove,
         handleElementMouseUp,
         addOverlayImage,
+        addIcon,
         removeOverlayImage,
         updateOverlayImageSize,
         updateOverlayImageLayer,

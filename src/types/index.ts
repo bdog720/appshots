@@ -52,6 +52,7 @@ export type GradientPreset = {
 export type ImageOverlay = {
   id: string;
   src: string;
+  name?: string;
   x: number;
   y: number;
   width: number;
