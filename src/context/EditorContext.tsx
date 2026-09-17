@@ -848,9 +848,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const updateScreenshotById = useCallback(
     (screenshotId: string, updates: Partial<Screenshot>) => {
-      setScreenshotsState((prev) =>
-        prev.map((s) => (s.id === screenshotId ? { ...s, ...updates } : s)),
-      );
+      setScreenshotsState((prev) => {
+        const target = prev.find((s) => s.id === screenshotId);
+        // A no-op update (e.g. the headline editor reporting unchanged HTML on
+        // blur) keeps the same state, so it adds no undo step.
+        const changes = (Object.keys(updates) as (keyof Screenshot)[]).some(
+          (key) => target?.[key] !== updates[key],
+        );
+        if (!target || !changes) return prev;
+        return prev.map((s) => (s.id === screenshotId ? { ...s, ...updates } : s));
+      });
     },
     [],
   );
