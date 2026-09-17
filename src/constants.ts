@@ -1,6 +1,6 @@
 import type { DeviceSpec, GradientPreset, ExportSize } from "./types";
 
-export const GITHUB_REPO_URL = "https://github.com/oyeolamilekan/appshots";
+export const GITHUB_REPO_URL = "https://github.com/bdog720/breezel";
 
 // Shared Apple titanium finishes (iPhone 16/15 Pro line)
 const APPLE_PRO_COLORS = [

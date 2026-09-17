@@ -150,7 +150,7 @@ describe("ServerStorage load and save", () => {
     const offline = new ServerStorage(async () => {
       throw new TypeError("Failed to fetch");
     });
-    await expect(offline.load()).rejects.toThrow("Can't reach the AppShots server");
+    await expect(offline.load()).rejects.toThrow("Can't reach the Breezel server");
   });
 
   it("keeps the status and the server's error message", async () => {

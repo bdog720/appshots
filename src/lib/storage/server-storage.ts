@@ -77,7 +77,7 @@ export class ServerStorage implements ServerProjectStorage {
     try {
       return await this.fetchImpl(url, { credentials: "same-origin", ...init });
     } catch {
-      throw new StorageError("Can't reach the AppShots server");
+      throw new StorageError("Can't reach the Breezel server");
     }
   }
 

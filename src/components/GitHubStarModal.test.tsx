@@ -25,6 +25,8 @@ describe("GitHubStarModal", () => {
 
     const link = screen.getByRole("link", { name: GITHUB_REPO_URL });
     expect(link.getAttribute("href")).toBe(GITHUB_REPO_URL);
+    expect(GITHUB_REPO_URL).toBe("https://github.com/bdog720/breezel");
+    expect(screen.getByText("Support Breezel")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /maybe later/i }));
     expect(onClose).toHaveBeenCalledTimes(1);

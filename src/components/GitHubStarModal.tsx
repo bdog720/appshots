@@ -39,7 +39,7 @@ export const GitHubStarModal = ({
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/15 bg-amber-400/12 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-amber-200">
               <Star size={14} className="fill-amber-300 text-amber-300" />
-              Support AppShots
+              Support Breezel
             </div>
             <div className="max-w-md">
               <h2
@@ -49,7 +49,7 @@ export const GitHubStarModal = ({
                 Enjoying the export?
               </h2>
               <p className="mt-3 text-base leading-7 text-zinc-300">
-                Please give us a star on GitHub if AppShots is helping you ship
+                Please give us a star on GitHub if Breezel is helping you ship
                 better screenshots.
               </p>
             </div>
