@@ -2,8 +2,8 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { collectBundle, imageMimeType, readFileAsText } from "./bundle";
 
-const MANIFEST = '{"format":"appshots-import"}';
-const manifestFile = (name = "appshots.json") =>
+const MANIFEST = '{"format":"breezel-import"}';
+const manifestFile = (name = "breezel.json") =>
   new File([MANIFEST], name, { type: "application/json" });
 const png = (name: string) => new File(["png-bytes"], name, { type: "image/png" });
 
@@ -44,7 +44,7 @@ describe("collectBundle", () => {
 
   it("expands zips, including nested folders, skipping __MACOSX", async () => {
     const zip = await zipOf({
-      "set/appshots.json": MANIFEST,
+      "set/breezel.json": MANIFEST,
       "set/shots/01.png": "a",
       "__MACOSX/set/shots/._01.png": "junk",
     });
@@ -55,15 +55,23 @@ describe("collectBundle", () => {
     expect(await readFileAsText(bundle.images.get("01.png") as File)).toBe("a");
   });
 
+  it("still finds a manifest named appshots.json", async () => {
+    const bundle = await collectBundle([manifestFile("appshots.json"), png("01.png")]);
+    expect(bundle.manifestText).toBe(MANIFEST);
+  });
+
   it("requires exactly one manifest", async () => {
-    await expect(collectBundle([png("01.png")])).rejects.toThrow(/no appshots.json/);
+    await expect(collectBundle([png("01.png")])).rejects.toThrow(/no breezel.json/);
     await expect(
-      collectBundle([manifestFile(), await zipOf({ "appshots.json": MANIFEST })]),
-    ).rejects.toThrow(/found 2 appshots.json/);
+      collectBundle([manifestFile(), await zipOf({ "breezel.json": MANIFEST })]),
+    ).rejects.toThrow(/found 2 breezel.json/);
+    await expect(
+      collectBundle([manifestFile(), manifestFile("appshots.json")]),
+    ).rejects.toThrow(/found 2 breezel.json/);
   });
 
   it("rejects duplicate image names", async () => {
-    const zip = await zipOf({ "appshots.json": MANIFEST, "a/01.png": "a" });
+    const zip = await zipOf({ "breezel.json": MANIFEST, "a/01.png": "a" });
     await expect(collectBundle([zip, png("01.PNG")])).rejects.toThrow(/more than one image/);
   });
 

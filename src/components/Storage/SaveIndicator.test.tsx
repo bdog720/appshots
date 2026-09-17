@@ -80,9 +80,9 @@ describe("SaveIndicator", () => {
   });
 
   it("does not add the storage-full hint for other browser-mode error messages", () => {
-    renderIndicator({ kind: "error", message: "Can't reach the AppShots server" }, "browser");
+    renderIndicator({ kind: "error", message: "Can't reach the Breezel server" }, "browser");
     const region = screen.getByRole("status");
-    expect(within(region).getByText("Can't reach the AppShots server")).not.toBeNull();
+    expect(within(region).getByText("Can't reach the Breezel server")).not.toBeNull();
     expect(within(region).queryByText(/delete or shrink a project/i)).toBeNull();
   });
 
@@ -120,7 +120,7 @@ describe("SaveIndicator", () => {
     // The failure is the more urgent of the two, and it's the only one whose
     // fix — Retry — lives in this indicator; the conflict has its own banner.
     const handlers = renderIndicator(
-      { kind: "error", message: "Can't reach the AppShots server" },
+      { kind: "error", message: "Can't reach the Breezel server" },
       "server",
       CONFLICT,
     );

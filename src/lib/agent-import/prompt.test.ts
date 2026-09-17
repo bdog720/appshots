@@ -79,14 +79,14 @@ describe("buildAgentPrompt", () => {
       "Only this inline HTML is kept: `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, `<mark>`, `<br>`, plus `color` / `background-color` styles on `<span>` and `background-color` on `<mark>`.",
     );
     expect(prompt).toContain(
-      "Highlighted text keeps the headline's text color, so `brand.highlightColor` must contrast with the text color (at least 3:1) — or omit it and AppShots picks one.",
+      "Highlighted text keeps the headline's text color, so `brand.highlightColor` must contrast with the text color (at least 3:1) — or omit it and Breezel picks one.",
     );
   });
 
   it("asks for compact image formats because storage is limited", () => {
     expect(prompt).toContain("prefer WebP (quality about 90) or high-quality JPEG over PNG");
     expect(prompt).toContain(
-      "AppShots stores projects in the browser (about 4–5 MB in total), so a large set of PNGs may not save.",
+      "Breezel stores projects in the browser (about 4–5 MB in total), so a large set of PNGs may not save.",
     );
   });
 
@@ -97,8 +97,9 @@ describe("buildAgentPrompt", () => {
   });
 
   it("states the output contract and embeds the example", () => {
-    expect(prompt).toContain("appshots.json");
-    expect(prompt).toContain('"format": "appshots-import"');
+    expect(prompt).toContain("breezel.json");
+    expect(prompt).toContain('"format": "breezel-import"');
+    expect(prompt).not.toMatch(/appshots/i);
     expect(prompt).toContain(JSON.stringify(EXAMPLE_MANIFEST, null, 2));
   });
 });

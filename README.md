@@ -1,10 +1,8 @@
-# 📱 App Store Screenshot Generator
+# Breezel
 
-A free, open-source tool to create stunning, high-converting screenshots for the Apple App Store and Google Play Store in minutes. Design professional app previews with an intuitive drag-and-drop editor.
+Breezel is a free, open-source editor for App Store and Google Play screenshots. Drop your app's screens into realistic device frames, add headlines and backgrounds, and export every size the stores ask for. Run it in Docker and your projects are saved on your own server.
 
-🔗 **Live Demo:** [appshots.appstate.xyz](https://appshots.appstate.xyz/)
-
-![App Store Screenshot Generator](public/demo-image.png)
+Breezel started as a fork of [AppShots](https://github.com/oyeolamilekan/appshots) by Oye Olalekan Johnson. See [Credits](#credits).
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
@@ -94,8 +92,8 @@ A free, open-source tool to create stunning, high-converting screenshots for the
 
 ```bash
 # Clone the repository
-git clone https://github.com/oyeolamilekan/appshots.git
-cd app-screenshot-generator
+git clone https://github.com/bdog720/breezel.git
+cd breezel
 
 # Install dependencies
 bun install
@@ -127,7 +125,7 @@ docker compose up -d --build
 Then open **http://localhost:8080**. To use a different port:
 
 ```bash
-APPSHOTS_PORT=3000 docker compose up -d --build
+BREEZEL_PORT=3000 docker compose up -d --build
 ```
 
 Stop it with `docker compose down`.
@@ -135,8 +133,8 @@ Stop it with `docker compose down`.
 ### Plain Docker
 
 ```bash
-docker build -t appshots .
-docker run -d -p 8080:80 -v appshots-data:/data --name appshots appshots
+docker build -t breezel .
+docker run -d -p 8080:80 -v breezel-data:/data --name breezel breezel
 ```
 
 The image is a multi-stage build: Bun + Vite compile the app, and a small Bun server serves it together with the storage API. Projects, images and version history are saved in `/data` — mount a volume there or they are lost when the container is recreated.
@@ -147,19 +145,19 @@ Every push to the default branch publishes a multi-arch image (amd64 + arm64) to
 
 ```yaml
 services:
-  appshots:
-    image: ghcr.io/OWNER/appshots:latest   # e.g. ghcr.io/bdog720/appshots:latest
-    container_name: appshots
+  breezel:
+    image: ghcr.io/bdog720/breezel:latest
+    container_name: breezel
     restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
-      - appshots-data:/data
+      - breezel-data:/data
     # environment:
-    #   APPSHOTS_PASSWORD: change-me
+    #   BREEZEL_PASSWORD: change-me
 
 volumes:
-  appshots-data:
+  breezel-data:
 ```
 
 In **Dockge**, create a new Compose stack, paste the above, and deploy. Pull updates later with the stack's **Update** button. (If the package is private, either make it public in the repo's Packages settings or log the host in to `ghcr.io` first.)
@@ -167,10 +165,17 @@ In **Dockge**, create a new Compose stack, paste the above, and deploy. Pull upd
 ### Storage, passwords and backups
 
 - **Where projects live:** with the Docker image, projects, images and version history are stored in the container's `/data` volume, so they're the same from any browser that can reach it. Running `bun run dev` (or hosting the static build elsewhere) saves to the browser instead. Use `bun run dev:server` alongside `bun run dev` to try container storage locally.
-- **Password:** set `APPSHOTS_PASSWORD` to require a login. Without it, anyone who can reach the port can read and change projects — keep it on your LAN or behind a reverse proxy with its own auth.
-- **Backups:** copy the volume (e.g. `docker run --rm -v appshots-data:/data -v "$PWD":/backup alpine tar czf /backup/appshots-data.tgz -C /data .`), or use **Export Project** for individual projects.
-- **Permissions:** the server runs as the `bun` user. If you bind-mount a host folder instead of a named volume, make sure that user can write to it, or AppShots falls back to browser storage and shows a warning.
-- **Upgrading:** when you first open a container that has no projects, AppShots moves the projects saved in that browser into it. The browser copy is kept as a backup.
+- **Password:** set `BREEZEL_PASSWORD` to require a login. Without it, anyone who can reach the port can read and change projects — keep it on your LAN or behind a reverse proxy with its own auth.
+- **Backups:** copy the volume (e.g. `docker run --rm -v breezel-data:/data -v "$PWD":/backup alpine tar czf /backup/breezel-data.tgz -C /data .`), or use **Export Project** for individual projects.
+- **Permissions:** the server runs as the `bun` user. If you bind-mount a host folder instead of a named volume, make sure that user can write to it, or Breezel falls back to browser storage and shows a warning.
+- **Upgrading:** when you first open a container that has no projects, Breezel moves the projects saved in that browser into it. The browser copy is kept as a backup.
+- **Coming from AppShots:** existing installs keep working. The server still reads `APPSHOTS_PASSWORD`, `APPSHOTS_DATA_DIR` and `APPSHOTS_DIST_DIR` and logs a note asking you to rename them to `BREEZEL_*`. If your stack mounts a volume such as `appshots-data`, keep that name and your projects stay put. If you switch to this repo's `docker-compose.yml`, copy the old volume into the new one first (run `docker volume ls` to see the real names; compose adds the project folder as a prefix):
+
+  ```bash
+  docker run --rm -v appshots_appshots-data:/from -v breezel_breezel-data:/to alpine cp -a /from/. /to/
+  ```
+
+  Old `.appshots.json` backups and agent bundles with `appshots.json` still import.
 
 ## 🛠️ Tech Stack
 
@@ -253,6 +258,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Credits
+
+Breezel is built on [AppShots](https://github.com/oyeolamilekan/appshots), created by Oye Olalekan Johnson and released under the MIT License. The editor, device frames and export pipeline started there.
+
 ## 🙏 Acknowledgments
 
 - [TanStack](https://tanstack.com/) for the amazing router and devtools
@@ -262,7 +271,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📬 Contact
 
-- Create an [issue](https://github.com/oyeolamilekan/appshots/issues) for bug reports or feature requests
+- Create an [issue](https://github.com/bdog720/breezel/issues) for bug reports or feature requests
 - Star ⭐ this repo if you find it useful!
 
 ---

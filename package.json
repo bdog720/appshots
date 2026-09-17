@@ -1,10 +1,10 @@
 {
-  "name": "frontend",
+  "name": "breezel",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "bun --bun vite dev",
-    "dev:server": "PORT=3000 APPSHOTS_DATA_DIR=./.appshots-data APPSHOTS_DIST_DIR=./dist bun --watch server/main.ts",
+    "dev:server": "PORT=3000 BREEZEL_DATA_DIR=./.breezel-data BREEZEL_DIST_DIR=./dist bun --watch server/main.ts",
     "build": "bun --bun vite build && tsc && tsc -p server",
     "preview": "bun --bun vite preview",
     "test": "vitest run",
@@ -14,7 +14,6 @@
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-router": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
-    "@vercel/analytics": "^1.6.1",
     "jszip": "^3.10.1",
     "lucide-react": "^0.545.0",
     "react": "^19.2.0",

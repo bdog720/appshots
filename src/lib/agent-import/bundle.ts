@@ -7,7 +7,12 @@
 import JSZip from "jszip";
 import { ImportError, type ImportIssue } from "./issues";
 
-export const MANIFEST_FILENAME = "appshots.json";
+export const MANIFEST_FILENAME = "breezel.json";
+/** Also accepted: bundles written before the rename to Breezel. */
+const LEGACY_MANIFEST_FILENAMES = ["appshots.json"];
+
+const isManifestName = (name: string): boolean =>
+  name === MANIFEST_FILENAME || LEGACY_MANIFEST_FILENAMES.includes(name);
 
 const IMAGE_TYPES: Record<string, string> = {
   png: "image/png",
@@ -75,7 +80,7 @@ export const collectBundle = async (files: File[]): Promise<Bundle> => {
   }
 
   const manifests = expanded.filter(
-    (f) => basename(f.name).toLowerCase() === MANIFEST_FILENAME,
+    (f) => isManifestName(basename(f.name).toLowerCase()),
   );
   if (manifests.length === 0) {
     throw new ImportError([

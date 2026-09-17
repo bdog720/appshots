@@ -245,7 +245,7 @@ describe("useProjectPersistence", () => {
     hook.rerender({ projects: [mineA, initial[1]], activeProjectId: "a" });
     await flushTimers();
 
-    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
+    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the Breezel server"));
     const mineB = project("b", "mine B");
     hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
     await flushTimers();
@@ -253,7 +253,7 @@ describe("useProjectPersistence", () => {
     expect(saveProject).toHaveBeenCalledTimes(2);
     expect(hook.result.current.status).toEqual({
       kind: "error",
-      message: "Can't reach the AppShots server",
+      message: "Can't reach the Breezel server",
     });
     expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
@@ -328,11 +328,11 @@ describe("useProjectPersistence", () => {
     await flushTimers();
     expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
 
-    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
+    saveProject.mockRejectedValueOnce(new StorageError("Can't reach the Breezel server"));
     await act(async () => {
       // Thrown rather than swallowed: the banner shows this beside its own
       // buttons, which is where the user is looking and where the retry is.
-      await expect(hook.result.current.keepMine()).rejects.toThrow("Can't reach the AppShots server");
+      await expect(hook.result.current.keepMine()).rejects.toThrow("Can't reach the Breezel server");
     });
     // The conflict is still live, so the affordance survives the failure.
     expect(hook.result.current.conflict).toEqual({ kind: "conflict", projectId: "a", revision: 7, savedAt: 50 });
@@ -395,7 +395,7 @@ describe("useProjectPersistence", () => {
       .mockResolvedValueOnce({ ok: false, conflict: { revision: 7, savedAt: 50 } })
       // B does go out now (see "keeps autosaving other projects while one is
       // in conflict"), so its save has to fail for it to still be pending here.
-      .mockRejectedValueOnce(new StorageError("Can't reach the AppShots server"));
+      .mockRejectedValueOnce(new StorageError("Can't reach the Breezel server"));
     const mineA = project("a", "mine A");
     const mineB = project("b", "mine B");
     hook.rerender({ projects: [mineA, mineB], activeProjectId: "a" });
@@ -405,7 +405,7 @@ describe("useProjectPersistence", () => {
     // B's failure is reported rather than hidden behind the conflict.
     expect(hook.result.current.status).toEqual({
       kind: "error",
-      message: "Can't reach the AppShots server",
+      message: "Can't reach the Breezel server",
     });
 
     const theirsA = project("a", "theirs A");

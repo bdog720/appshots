@@ -1,5 +1,5 @@
 /**
- * Design guidance engine — the pure "design brain" behind AppShots' readability
+ * Design guidance engine — the pure "design brain" behind Breezel's readability
  * help. No UI, no state: just WCAG contrast math and readable-color suggestions
  * that the editor surfaces (chips, tile dots, the design-check panel) build on.
  *

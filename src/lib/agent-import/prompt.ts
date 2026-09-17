@@ -1,6 +1,6 @@
 /**
  * The brief an AI agent receives. Generated from live data so it can never
- * list a device, font, layout or style AppShots doesn't support.
+ * list a device, font, layout or style Breezel doesn't support.
  */
 
 import { devices, exportSizes, gradientPresets } from "../../constants";
@@ -85,9 +85,9 @@ const presetsTable = () =>
     gradientPresets.map((p) => [code(p.id), `${p.label}: ${p.from} → ${p.to}`]),
   );
 
-export const buildAgentPrompt = (): string => `# AppShots agent import — screenshot set brief
+export const buildAgentPrompt = (): string => `# Breezel agent import — screenshot set brief
 
-You are preparing App Store / Google Play screenshots for the app in this repository. Produce a folder containing the app's screenshots **and** an \`appshots.json\` file describing how AppShots should present them. The user will drop that folder (or a zip of it) into AppShots via **Project menu → Import from agent…** and get a finished, editable project.
+You are preparing App Store / Google Play screenshots for the app in this repository. Produce a folder containing the app's screenshots **and** an \`breezel.json\` file describing how Breezel should present them. The user will drop that folder (or a zip of it) into Breezel via **Project menu → Import from agent…** and get a finished, editable project.
 
 ## 1. Research the app first
 
@@ -101,12 +101,12 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 - Use the screenshots this repository's tooling already captures. One screen per feature, realistic demo data, no debug banners, empty states, or personal information.
 - Order matters: the strongest "hero" feature goes first, and the first two or three screens must sell the app on their own.
 - Use 5–10 screens, portrait, at the device's native resolution (see the device tables).
-- Save every image next to \`appshots.json\` with a unique filename (\`01-home.webp\`, \`02-stats.webp\`, …). PNG, JPEG and WebP are accepted, but prefer WebP (quality about 90) or high-quality JPEG over PNG: AppShots stores projects in the browser (about 4–5 MB in total), so a large set of PNGs may not save.
+- Save every image next to \`breezel.json\` with a unique filename (\`01-home.webp\`, \`02-stats.webp\`, …). PNG, JPEG and WebP are accepted, but prefer WebP (quality about 90) or high-quality JPEG over PNG: Breezel stores projects in the browser (about 4–5 MB in total), so a large set of PNGs may not save.
 
 ## 3. Copy rules
 
 - **Headline:** 2–5 words, at most ~28 characters, benefit first ("Plan your week in seconds", not "Calendar screen"). Start with a verb where it reads naturally.
-- **Highlight:** at most one phrase per headline, wrapped in \`<mark>…</mark>\`. Highlighted text keeps the headline's text color, so \`brand.highlightColor\` must contrast with the text color (at least 3:1) — or omit it and AppShots picks one.
+- **Highlight:** at most one phrase per headline, wrapped in \`<mark>…</mark>\`. Highlighted text keeps the headline's text color, so \`brand.highlightColor\` must contrast with the text color (at least 3:1) — or omit it and Breezel picks one.
 - **Subheadline:** optional, at most ~60 characters, adds a concrete detail. Omit it rather than repeat the headline.
 - Keep tone and tense consistent. Make no claims the repository can't back up (no "#1", awards, or prices unless they are real).
 - Only this inline HTML is kept: \`<b>\`, \`<strong>\`, \`<i>\`, \`<em>\`, \`<u>\`, \`<mark>\`, \`<br>\`, plus \`color\` / \`background-color\` styles on \`<span>\` and \`background-color\` on \`<mark>\`. Everything else is removed. A newline becomes a line break.
@@ -116,8 +116,8 @@ You are preparing App Store / Google Play screenshots for the app in this reposi
 - Choose **one** \`brand.style\` for the whole set. From \`brand.primary\` it picks the font, sizes, background and a readable text color. \`brand.style\` requires \`brand.primary\`; without it the style is ignored. Override (\`brand.font\`, \`brand.background\`, …) only when the repository gives you a reason.
 - Give \`layout\` a rhythm: hero \`bleed-bottom\`, then alternate (for example \`tilt-left\` / \`tilt-right\`), \`perspective\` at most twice, never the same layout more than three times in a row.
 - Keep one background across the set. Use a per-screen \`background\` only as a deliberate accent, and set that screen's \`text.color\` so text stays readable.
-- The device and \`exportSize\` must be the same platform (an iPhone with an iPhone size, a Pixel with a Play phone size). One \`appshots.json\` describes one device family; make a separate folder for an iPad or Android set.
-- Dark text on light backgrounds, light text on dark. AppShots warns about contrast failures.
+- The device and \`exportSize\` must be the same platform (an iPhone with an iPhone size, a Pixel with a Play phone size). One \`breezel.json\` describes one device family; make a separate folder for an iPad or Android set.
+- Dark text on light backgrounds, light text on dark. Breezel warns about contrast failures.
 
 ## 5. Reference
 
@@ -153,11 +153,11 @@ ${presetsTable()}
 
 ## 6. Output contract
 
-- Write \`appshots.json\` (UTF-8) in the same folder as the images.
-- Required: \`"format": "appshots-import"\`, \`"version": 1\`, and \`screens\`. Each screen needs \`headline\` and **exactly one** of \`image\` (one device) or \`devices\` (a list, for multi-device screens).
+- Write \`breezel.json\` (UTF-8) in the same folder as the images.
+- Required: \`"format": "breezel-import"\`, \`"version": 1\`, and \`screens\`. Each screen needs \`headline\` and **exactly one** of \`image\` (one device) or \`devices\` (a list, for multi-device screens).
 - Give each \`devices[]\` entry its own \`x\`, \`y\` and \`scale\` (for two devices, roughly \`x\` 32 and 68 with \`scale\` 55), or they overlap.
 - Image references are bare filenames of files in that folder.
-- Unknown keys are rejected. Validate against the JSON Schema: download it from AppShots' **Import from agent** dialog, or use \`docs/agent-import/appshots-import.schema.json\` in the AppShots repository. The schema cannot check the exactly-one-of \`image\` / \`devices\` rule, so check that by hand.
+- Unknown keys are rejected. Validate against the JSON Schema: download it from Breezel's **Import from agent** dialog, or use \`docs/agent-import/breezel-import.schema.json\` in the Breezel repository. The schema cannot check the exactly-one-of \`image\` / \`devices\` rule, so check that by hand.
 - Everything else is optional. Per-screen \`text\`, \`device\` and \`background\` override the brand and layout for that screen only (\`device\` is ignored when a screen uses \`devices\`; put per-device settings on each \`devices[]\` entry instead).
 
 Worked example:
@@ -175,5 +175,5 @@ ${JSON.stringify(EXAMPLE_MANIFEST, null, 2)}
 - [ ] Text is readable on its background: every screen with its own \`background\` also sets a readable \`text.color\`.
 - [ ] The device and export size are the same platform.
 - [ ] The hero screen is first and there are 5–10 screens.
-- [ ] \`appshots.json\` parses and validates against the schema.
+- [ ] \`breezel.json\` parses and validates against the schema.
 `;

@@ -1,6 +1,6 @@
 # PRODUCT.md
 
-> Design context for AppShots. Derived from the codebase, README, and CLAUDE.md — not invented. Used by the `impeccable` design skill.
+> Design context for Breezel. Derived from the codebase, README, and CLAUDE.md — not invented. Used by the `impeccable` design skill.
 
 ## Register
 

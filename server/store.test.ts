@@ -21,7 +21,7 @@ let clock: number;
 let store: FileStore;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), "appshots-"));
+  dir = await mkdtemp(path.join(os.tmpdir(), "breezel-"));
   clock = new Date(2026, 8, 15, 8, 0).getTime();
   store = new FileStore(dir, () => clock);
   await store.init();
@@ -48,7 +48,7 @@ describe("FileStore init", () => {
   });
 
   it.skipIf(ignoresDirectoryModes)("reports an unwritable data directory", async () => {
-    const locked = await mkdtemp(path.join(os.tmpdir(), "appshots-locked-"));
+    const locked = await mkdtemp(path.join(os.tmpdir(), "breezel-locked-"));
     await chmod(locked, 0o500);
     try {
       expect(await new FileStore(locked).init()).toEqual({ writable: false });
@@ -59,7 +59,7 @@ describe("FileStore init", () => {
   });
 
   it.skipIf(ignoresDirectoryModes)("reports unwritable when projects/ is locked but the data directory is writable", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "appshots-subdir-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "breezel-subdir-"));
     const projects = path.join(root, "projects");
     await mkdir(projects);
     await chmod(projects, 0o500);

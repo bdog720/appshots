@@ -1,7 +1,7 @@
 /**
  * AgentImportModal
  *
- * Imports an agent-produced bundle (appshots.json + screenshots, as a folder,
+ * Imports an agent-produced bundle (breezel.json + screenshots, as a folder,
  * files, or zip) as a polished project, and hands out the agent prompt and JSON
  * Schema so the whole workflow lives in one place.
  */
@@ -129,7 +129,7 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "appshots-import.schema.json";
+    anchor.download = "breezel-import.schema.json";
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -180,7 +180,7 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
                 <h3 className="font-medium text-white">1. Give your agent the prompt</h3>
                 <p className="text-zinc-400">
                   Paste it into an AI agent working in your app's repository. It writes{" "}
-                  <code className="text-zinc-200">appshots.json</code> next to your screenshots.
+                  <code className="text-zinc-200">breezel.json</code> next to your screenshots.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className={SECONDARY} onClick={() => copy("prompt", buildAgentPrompt())}>
@@ -214,7 +214,7 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
                 >
                   <Upload className="h-6 w-6 text-zinc-500" />
                   <p>
-                    Drop the folder with <code className="text-zinc-200">appshots.json</code> and its
+                    Drop the folder with <code className="text-zinc-200">breezel.json</code> and its
                     screenshots, or a zip of it
                   </p>
                   <div className="flex flex-wrap justify-center gap-2">
@@ -258,7 +258,7 @@ export const AgentImportModal = ({ isOpen, onClose }: AgentImportModalProps) => 
 
           {step.kind === "errors" && (
             <section className="space-y-3">
-              <p>AppShots couldn't import this bundle. Paste these back to your agent:</p>
+              <p>Breezel couldn't import this bundle. Paste these back to your agent:</p>
               <ul className="space-y-1 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
                 {step.errors.map((issue, index) => (
                   <li key={index}>

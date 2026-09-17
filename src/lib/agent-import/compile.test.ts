@@ -23,7 +23,7 @@ const idGen = () => {
 };
 
 const manifestOf = (over: Partial<ImportManifest> = {}): ImportManifest => ({
-  format: "appshots-import",
+  format: "breezel-import",
   version: 1,
   screens: [{ image: "01.png", headline: "Plan your week" }],
   ...over,

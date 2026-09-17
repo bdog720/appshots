@@ -9,11 +9,13 @@
 
 import type { Project } from "../types";
 
-export const PROJECT_FILE_TYPE = "appshots-project";
+export const PROJECT_FILE_TYPE = "breezel-project";
+/** Backups exported before the rename to Breezel. */
+const LEGACY_PROJECT_FILE_TYPES = ["appshots-project"];
 export const PROJECT_FILE_VERSION = 1;
 
 export type ProjectFile = {
-  type: typeof PROJECT_FILE_TYPE;
+  type: string;
   version: number;
   project: Project;
 };
@@ -39,12 +41,13 @@ export const parseProjectFile = (text: string): Project => {
   }
 
   if (!data || typeof data !== "object") {
-    throw new Error("This doesn't look like an AppShots project file.");
+    throw new Error("This doesn't look like a Breezel project file.");
   }
 
   const file = data as Partial<ProjectFile>;
-  if (file.type !== PROJECT_FILE_TYPE || !file.project) {
-    throw new Error("This doesn't look like an AppShots project file.");
+  const knownType = file.type === PROJECT_FILE_TYPE || LEGACY_PROJECT_FILE_TYPES.includes(file.type ?? "");
+  if (!knownType || !file.project) {
+    throw new Error("This doesn't look like a Breezel project file.");
   }
 
   const project = file.project as Project;
@@ -63,5 +66,5 @@ export const suggestProjectFilename = (name: string): string => {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "project";
-  return `${slug}.appshots.json`;
+  return `${slug}.breezel.json`;
 };

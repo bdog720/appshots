@@ -38,7 +38,7 @@ describe("StorageBanners", () => {
     render(
       <StorageBanners
         {...baseProps}
-        notice={{ unwritable: false, migratedCount: 0, migrationError: "Can't reach the AppShots server" }}
+        notice={{ unwritable: false, migratedCount: 0, migrationError: "Can't reach the Breezel server" }}
         onDismissNotice={onDismissNotice}
       />,
     );
@@ -52,7 +52,7 @@ describe("StorageBanners", () => {
   it("resolves conflicts and shows failures", async () => {
     const onKeepMine = vi.fn(async () => {});
     const onLoadTheirs = vi.fn(async () => {
-      throw new Error("Can't reach the AppShots server");
+      throw new Error("Can't reach the Breezel server");
     });
     render(
       <StorageBanners
@@ -69,6 +69,6 @@ describe("StorageBanners", () => {
     await waitFor(() => expect(onKeepMine).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole("button", { name: "Load their version" }));
-    expect(await screen.findByText("Can't reach the AppShots server")).not.toBeNull();
+    expect(await screen.findByText("Can't reach the Breezel server")).not.toBeNull();
   });
 });

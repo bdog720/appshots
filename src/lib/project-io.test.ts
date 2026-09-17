@@ -39,13 +39,23 @@ describe("serializeProject / parseProjectFile", () => {
     expect(() => parseProjectFile("not json{")).toThrow();
   });
 
-  it("throws when the file is not an AppShots project", () => {
+  it("writes the Breezel file type", () => {
+    expect(JSON.parse(serializeProject(makeProject())).type).toBe("breezel-project");
+  });
+
+  it("still opens backups exported as AppShots projects", () => {
+    const project = makeProject();
+    const legacy = JSON.stringify({ type: "appshots-project", version: 1, project });
+    expect(parseProjectFile(legacy)).toEqual(project);
+  });
+
+  it("throws when the file is not a Breezel project", () => {
     expect(() => parseProjectFile(JSON.stringify({ foo: "bar" }))).toThrow();
   });
 
   it("throws when the project has no screenshots array", () => {
     const bad = JSON.stringify({
-      type: "appshots-project",
+      type: "breezel-project",
       version: 1,
       project: { id: "x", name: "x" },
     });
@@ -56,11 +66,11 @@ describe("serializeProject / parseProjectFile", () => {
 describe("suggestProjectFilename", () => {
   it("slugifies the project name", () => {
     expect(suggestProjectFilename("My Cool App!")).toBe(
-      "my-cool-app.appshots.json",
+      "my-cool-app.breezel.json",
     );
   });
 
   it("falls back to 'project' for an empty name", () => {
-    expect(suggestProjectFilename("   ")).toBe("project.appshots.json");
+    expect(suggestProjectFilename("   ")).toBe("project.breezel.json");
   });
 });
