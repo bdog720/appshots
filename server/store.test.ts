@@ -37,6 +37,9 @@ const listFilesRecursive = async (root: string): Promise<string[]> => {
   return entries.map(String);
 };
 
+// Root skips permission checks, and Windows ignores POSIX directory modes.
+const ignoresDirectoryModes = process.getuid?.() === 0 || process.platform === "win32";
+
 describe("FileStore init", () => {
   it("creates the data layout and reports writable", async () => {
     expect(await store.init()).toEqual({ writable: true });
@@ -44,8 +47,7 @@ describe("FileStore init", () => {
     expect(entries).toEqual(expect.arrayContaining(["projects", "images"]));
   });
 
-  it("reports an unwritable data directory", async () => {
-    if (process.getuid?.() === 0) return; // root ignores permissions
+  it.skipIf(ignoresDirectoryModes)("reports an unwritable data directory", async () => {
     const locked = await mkdtemp(path.join(os.tmpdir(), "appshots-locked-"));
     await chmod(locked, 0o500);
     try {
@@ -56,8 +58,7 @@ describe("FileStore init", () => {
     }
   });
 
-  it("reports unwritable when projects/ is locked but the data directory is writable", async () => {
-    if (process.getuid?.() === 0) return; // root ignores permissions
+  it.skipIf(ignoresDirectoryModes)("reports unwritable when projects/ is locked but the data directory is writable", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "appshots-subdir-"));
     const projects = path.join(root, "projects");
     await mkdir(projects);
