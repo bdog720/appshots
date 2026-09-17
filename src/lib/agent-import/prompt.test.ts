@@ -106,7 +106,9 @@ describe("buildAgentPrompt", () => {
 describe("committed agent docs", () => {
   it("match the generated output (run `bun run gen:agent-docs` if this fails)", () => {
     for (const [path, content] of Object.entries(renderAgentDocs())) {
-      expect(readFileSync(resolve(process.cwd(), path), "utf8"), path).toBe(content);
+      // A Windows checkout with core.autocrlf turns the committed LF files into CRLF.
+      const committed = readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
+      expect(committed, path).toBe(content);
     }
   });
 });
