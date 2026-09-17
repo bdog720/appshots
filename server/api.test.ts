@@ -13,11 +13,11 @@ let root: string;
 let config: ServerConfig;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), "appshots-api-"));
+  root = await mkdtemp(path.join(os.tmpdir(), "breezel-api-"));
   const dataDir = path.join(root, "data");
   const distDir = path.join(root, "dist");
   await mkdir(path.join(distDir, "assets"), { recursive: true });
-  await writeFile(path.join(distDir, "index.html"), "<!doctype html><title>AppShots</title>");
+  await writeFile(path.join(distDir, "index.html"), "<!doctype html><title>Breezel</title>");
   await writeFile(path.join(distDir, "assets", "app-abc.js"), "console.log(1)");
   const store = new FileStore(dataDir);
   const { writable } = await store.init();
@@ -49,7 +49,7 @@ describe("health and auth", () => {
 
     const denied = await call("GET", "/api/state");
     expect(denied.status).toBe(401);
-    expect(denied.headers.get("WWW-Authenticate")).toBe('Basic realm="AppShots"');
+    expect(denied.headers.get("WWW-Authenticate")).toBe('Basic realm="Breezel"');
     expect((await call("GET", "/")).status).toBe(401);
 
     const wrong = { Authorization: `Basic ${btoa("me:nope")}` };
@@ -203,14 +203,14 @@ describe("static files", () => {
     const index = await call("GET", "/");
     expect(index.status).toBe(200);
     expect(index.headers.get("Cache-Control")).toBe("no-cache");
-    expect(await index.text()).toContain("AppShots");
+    expect(await index.text()).toContain("Breezel");
 
     const asset = await call("GET", "/assets/app-abc.js");
     expect(asset.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
     expect(asset.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
 
     expect((await call("GET", "/assets/missing.js")).status).toBe(404);
-    expect(await (await call("GET", "/some/client/route")).text()).toContain("AppShots");
+    expect(await (await call("GET", "/some/client/route")).text()).toContain("Breezel");
     // "%2F" keeps the slash encoded through URL parsing, so the decoded path escapes dist/.
     expect((await call("GET", "/..%2Fsecret.txt")).status).toBe(404);
     expect((await call("GET", "/api/unknown")).status).toBe(404);
@@ -228,7 +228,7 @@ describe("static files", () => {
 
 describe("compression", () => {
   const GZIP = { "Accept-Encoding": "gzip, deflate, br" };
-  const bigScript = "console.log('appshots');\n".repeat(200);
+  const bigScript = "console.log('breezel');\n".repeat(200);
 
   beforeEach(async () => {
     await writeFile(path.join(root, "dist", "assets", "big-abc.js"), bigScript);
@@ -267,7 +267,7 @@ describe("compression", () => {
   it("leaves small responses and images alone", async () => {
     const index = await call("GET", "/", { headers: GZIP });
     expect(index.headers.get("Content-Encoding")).toBeNull();
-    expect(await index.text()).toContain("AppShots");
+    expect(await index.text()).toContain("Breezel");
 
     const png = new Uint8Array(4096);
     png.set(PNG);

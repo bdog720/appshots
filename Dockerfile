@@ -14,9 +14,9 @@ RUN bun run build
 
 # ---------- Runtime stage: Bun server for the app + storage API ----------
 FROM oven/bun:1-alpine AS runtime
-LABEL org.opencontainers.image.title="appshots" \
+LABEL org.opencontainers.image.title="breezel" \
       org.opencontainers.image.description="App Store / Play Store screenshot generator with built-in project storage" \
-      org.opencontainers.image.source="https://github.com/bdog720/appshots"
+      org.opencontainers.image.source="https://github.com/bdog720/breezel"
 
 WORKDIR /app
 
@@ -24,9 +24,9 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY server ./server
 
-ENV APPSHOTS_DATA_DIR=/data \
-    APPSHOTS_DIST_DIR=/app/dist \
-    PORT=80 \
+# The server already defaults to /data and ./dist (server/config.ts). Setting
+# BREEZEL_DATA_DIR here would hide an APPSHOTS_DATA_DIR set by an older stack.
+ENV PORT=80 \
     NODE_ENV=production
 
 # Projects, images and history live here; mount a volume to keep them.

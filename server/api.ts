@@ -1,5 +1,5 @@
 /**
- * HTTP handling for the AppShots storage server. Plain Request → Response so it
+ * HTTP handling for the Breezel storage server. Plain Request → Response so it
  * runs under Bun in production and under Vitest in tests.
  */
 
@@ -304,7 +304,7 @@ const route = async (request: Request, config: ServerConfig): Promise<Response> 
   if (!isAuthorized(request, config.password)) {
     return new Response("Authentication required", {
       status: 401,
-      headers: { "WWW-Authenticate": 'Basic realm="AppShots"' },
+      headers: { "WWW-Authenticate": 'Basic realm="Breezel"' },
     });
   }
 

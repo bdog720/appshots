@@ -16,7 +16,7 @@ let clock: number;
 let store: FileStore;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), "appshots-"));
+  dir = await mkdtemp(path.join(os.tmpdir(), "breezel-"));
   clock = new Date(2026, 8, 15, 8, 0).getTime();
   store = new FileStore(dir, () => clock);
   await store.init();

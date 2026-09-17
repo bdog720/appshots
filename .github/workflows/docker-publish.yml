@@ -1,7 +1,7 @@
 name: Publish Docker image
 
-# Builds the appshots image and pushes it to the GitHub Container Registry
-# (ghcr.io/<owner>/appshots) so it can be pulled by Dockge, Portainer, etc.
+# Builds the Breezel image and pushes it to the GitHub Container Registry
+# (ghcr.io/<owner>/<repo>) so it can be pulled by Dockge, Portainer, etc.
 on:
   push:
     branches: [master, main]

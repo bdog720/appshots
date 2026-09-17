@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --bun vite dev",
-    "dev:server": "PORT=3000 APPSHOTS_DATA_DIR=./.appshots-data APPSHOTS_DIST_DIR=./dist bun --watch server/main.ts",
+    "dev:server": "PORT=3000 BREEZEL_DATA_DIR=./.breezel-data BREEZEL_DIST_DIR=./dist bun --watch server/main.ts",
     "build": "bun --bun vite build && tsc && tsc -p server",
     "preview": "bun --bun vite preview",
     "test": "vitest run",
