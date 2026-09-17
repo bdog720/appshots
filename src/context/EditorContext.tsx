@@ -695,7 +695,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const createProject = (name: string) => {
     const newProject = createDefaultProject(name);
     setProjects((prev) => [...prev, newProject]);
-    switchProject(newProject.id);
+    // switchProject would look the id up in `projects`, which doesn't hold it yet.
+    activateProject(newProject);
   };
 
   const renameProject = (id: string, name: string) => {
