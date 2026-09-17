@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
+import { gunzipSync } from "node:zlib";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleRequest, type ServerConfig } from "./api";
@@ -222,5 +223,58 @@ describe("static files", () => {
     expect(sitemap.headers.get("Content-Type")).toBe("application/xml");
     expect(sitemap.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect((await call("GET", "/")).headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+});
+
+describe("compression", () => {
+  const GZIP = { "Accept-Encoding": "gzip, deflate, br" };
+  const bigScript = "console.log('appshots');\n".repeat(200);
+
+  beforeEach(async () => {
+    await writeFile(path.join(root, "dist", "assets", "big-abc.js"), bigScript);
+  });
+
+  it("gzips a large text asset when the browser accepts gzip", async () => {
+    const response = await call("GET", "/assets/big-abc.js", { headers: GZIP });
+    expect(response.headers.get("Content-Encoding")).toBe("gzip");
+    expect(response.headers.get("Vary")).toBe("Accept-Encoding");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    const body = new Uint8Array(await response.arrayBuffer());
+    expect(body.byteLength).toBeLessThan(bigScript.length);
+    expect(gunzipSync(body).toString("utf8")).toBe(bigScript);
+  });
+
+  it("sends it uncompressed, but still varies, when gzip isn't accepted", async () => {
+    const variants: Record<string, string>[] = [{}, { "Accept-Encoding": "br" }, { "Accept-Encoding": "gzip;q=0" }];
+    for (const headers of variants) {
+      const response = await call("GET", "/assets/big-abc.js", { headers });
+      expect(response.headers.get("Content-Encoding")).toBeNull();
+      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
+      expect(await response.text()).toBe(bigScript);
+    }
+  });
+
+  it("gzips a large JSON response", async () => {
+    const big = project("a long headline ".repeat(200));
+    await putJson("/api/projects/p1", { project: big }, { "If-None-Match": "*" });
+    const response = await call("GET", "/api/projects/p1", { headers: GZIP });
+    expect(response.headers.get("Content-Encoding")).toBe("gzip");
+    expect(response.headers.get("ETag")).toBe('"1"');
+    const body = JSON.parse(gunzipSync(new Uint8Array(await response.arrayBuffer())).toString("utf8"));
+    expect(body).toMatchObject({ revision: 1, project: big });
+  });
+
+  it("leaves small responses and images alone", async () => {
+    const index = await call("GET", "/", { headers: GZIP });
+    expect(index.headers.get("Content-Encoding")).toBeNull();
+    expect(await index.text()).toContain("AppShots");
+
+    const png = new Uint8Array(4096);
+    png.set(PNG);
+    const { url } = (await (await call("POST", "/api/images", { body: png })).json()) as { url: string };
+    const image = await call("GET", url, { headers: GZIP });
+    expect(image.headers.get("Content-Encoding")).toBeNull();
+    expect(image.headers.get("Vary")).toBeNull();
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
   });
 });

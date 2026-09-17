@@ -7,6 +7,8 @@ import { Buffer } from "node:buffer";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import type { FileStore } from "./store";
 import {
   MAX_IMAGE_BYTES,
@@ -259,7 +261,41 @@ const serveStatic = async (pathname: string, distDir: string | null): Promise<Re
   return fileResponse(indexFile, "no-cache");
 };
 
-export const handleRequest = async (request: Request, config: ServerConfig): Promise<Response> => {
+/** The types nginx gzipped before this server replaced it. */
+const COMPRESSIBLE = /^(text\/|application\/(javascript|json|xml|manifest\+json)|image\/svg\+xml)/;
+/** Below this, gzip's framing costs more than it saves (nginx's gzip_min_length). */
+const MIN_COMPRESS_BYTES = 1024;
+const gzipAsync = promisify(gzip);
+
+/** Whether Accept-Encoding allows gzip: listed (or `*`) without q=0. */
+const acceptsGzip =(header: string | null): boolean =>
+  (header ?? "").split(",").some((part) => {
+    const [name, ...params] = part.trim().toLowerCase().split(";");
+    if (name.trim() !== "gzip" && name.trim() !== "*") return false;
+    const q = params.map((param) => param.trim()).find((param) => param.startsWith("q="));
+    return q === undefined || Number(q.slice(2)) > 0;
+  });
+
+const compress = async (request: Request, response: Response): Promise<Response> => {
+  const type = response.headers.get("Content-Type") ?? "";
+  if (!response.body || request.method === "HEAD" || !COMPRESSIBLE.test(type)) return response;
+  const headers = new Headers(response.headers);
+  // Caches must key on Accept-Encoding whether or not this copy is compressed.
+  headers.set("Vary", "Accept-Encoding");
+  const body = new Uint8Array(await response.arrayBuffer());
+  const init = { status: response.status, statusText: response.statusText, headers };
+  if (body.byteLength < MIN_COMPRESS_BYTES || !acceptsGzip(request.headers.get("accept-encoding"))) {
+    return new Response(body, init);
+  }
+  headers.set("Content-Encoding", "gzip");
+  headers.delete("Content-Length");
+  return new Response(new Uint8Array(await gzipAsync(body)), init);
+};
+
+export const handleRequest = async (request: Request, config: ServerConfig): Promise<Response> =>
+  compress(request, await route(request, config));
+
+const route = async (request: Request, config: ServerConfig): Promise<Response> => {
   const { pathname } = new URL(request.url);
 
   if (pathname === "/api/health") {
