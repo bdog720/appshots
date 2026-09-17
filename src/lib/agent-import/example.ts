@@ -31,7 +31,7 @@ export const EXAMPLE_IMAGES: ExampleImage[] = [
 ];
 
 export const EXAMPLE_MANIFEST: ImportManifest = {
-  format: "appshots-import",
+  format: "breezel-import",
   version: 1,
   name: "Habitly — App Store",
   exportSize: "6.9",

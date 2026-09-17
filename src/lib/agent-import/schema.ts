@@ -1,5 +1,5 @@
 /**
- * The agent import manifest (`appshots.json`), defined once in Zod. Types,
+ * The agent import manifest (`breezel.json`), defined once in Zod. Types,
  * validation (with issue paths), and the published JSON Schema all derive from
  * this file. Enum-like fields that have a closed, stable list (layout, style,
  * gradient preset) are enums; device / color / font / export size are plain
@@ -15,8 +15,12 @@ import { VIBES } from "../brand-guide";
 import { LAYOUT_PRESET_IDS } from "../layout-presets";
 import { formatIssuePath, type ImportIssue } from "./issues";
 
-export const IMPORT_FORMAT = "appshots-import";
+export const IMPORT_FORMAT = "breezel-import";
+/** Manifests written before the rename to Breezel. */
+const LEGACY_IMPORT_FORMATS = ["appshots-import"] as const;
 export const IMPORT_VERSION = 1;
+
+const MANIFEST_PATH = "breezel.json";
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -141,7 +145,7 @@ const brandSchema = z.strictObject({
 
 export const importManifestSchema = z.strictObject({
   $schema: z.string().optional(),
-  format: z.literal(IMPORT_FORMAT),
+  format: z.enum([IMPORT_FORMAT, ...LEGACY_IMPORT_FORMATS]),
   version: z.literal(IMPORT_VERSION),
   name: z.string().min(1).max(100).optional(),
   exportSize: z.string().min(1).optional(),
@@ -167,7 +171,7 @@ export const parseManifest = (text: string): ParseResult => {
   } catch {
     return {
       ok: false,
-      errors: [{ path: "appshots.json", message: "file is not valid JSON" }],
+      errors: [{ path: MANIFEST_PATH, message: "file is not valid JSON" }],
     };
   }
 
@@ -184,5 +188,5 @@ export const parseManifest = (text: string): ParseResult => {
 
 export const buildJsonSchema = (): Record<string, unknown> => ({
   ...(z.toJSONSchema(importManifestSchema) as Record<string, unknown>),
-  title: "AppShots agent import manifest (appshots.json)",
+  title: `Breezel agent import manifest (${MANIFEST_PATH})`,
 });

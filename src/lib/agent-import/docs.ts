@@ -5,8 +5,8 @@ import { buildJsonSchema } from "./schema";
 /** Repo-relative paths of the committed, generated agent-import docs. */
 export const AGENT_DOC_PATHS = {
   prompt: "docs/agent-import/PROMPT.md",
-  schema: "docs/agent-import/appshots-import.schema.json",
-  example: "docs/agent-import/example/appshots.json",
+  schema: "docs/agent-import/breezel-import.schema.json",
+  example: "docs/agent-import/example/breezel.json",
 } as const;
 
 export const renderAgentDocs = (): Record<string, string> => ({

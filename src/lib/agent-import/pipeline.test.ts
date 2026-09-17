@@ -11,8 +11,8 @@ vi.mock("./issues", async (importOriginal) => {
 
 const manifest = (screens: unknown[]) =>
   new File(
-    [JSON.stringify({ format: "appshots-import", version: 1, screens })],
-    "appshots.json",
+    [JSON.stringify({ format: "breezel-import", version: 1, screens })],
+    "breezel.json",
     { type: "application/json" },
   );
 const png = (name: string) => new File(["png"], name, { type: "image/png" });
@@ -60,7 +60,7 @@ describe("runAgentImport", () => {
     const result = await runAgentImport([png("01.png")], options());
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors[0].message).toMatch(/no appshots.json/);
+    expect(result.errors[0].message).toMatch(/no breezel.json/);
   });
 
   it("returns schema errors with paths", async () => {

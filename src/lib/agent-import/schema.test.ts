@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildJsonSchema, parseManifest } from "./schema";
 
 const minimal = {
-  format: "appshots-import",
+  format: "breezel-import",
   version: 1,
   screens: [{ image: "01.png", headline: "Plan your week" }],
 };
 
 const full = {
-  $schema: "./appshots-import.schema.json",
-  format: "appshots-import",
+  $schema: "./breezel-import.schema.json",
+  format: "breezel-import",
   version: 1,
   name: "Habitly — App Store",
   exportSize: "6.9",
@@ -79,9 +79,14 @@ describe("parseManifest", () => {
     expect(result.manifest.screens).toHaveLength(3);
   });
 
+  it("still accepts manifests written for AppShots", () => {
+    const result = parseManifest(JSON.stringify({ ...minimal, format: "appshots-import" }));
+    expect(result.ok).toBe(true);
+  });
+
   it("reports invalid JSON", () => {
     expect(errorsOf("{ nope")).toEqual([
-      { path: "appshots.json", message: "file is not valid JSON" },
+      { path: "breezel.json", message: "file is not valid JSON" },
     ]);
   });
 
@@ -138,7 +143,8 @@ describe("buildJsonSchema", () => {
     const schema = buildJsonSchema();
     expect(schema.type).toBe("object");
     const text = JSON.stringify(schema);
-    expect(text).toContain("appshots-import");
+    expect(text).toContain("breezel-import");
+    expect(schema.title).toBe("Breezel agent import manifest (breezel.json)");
     expect(text).toContain("tilt-left");
     expect(text).toContain("editorial");
     expect(text).toContain("ocean");

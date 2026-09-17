@@ -28,7 +28,7 @@ const writeText = vi.fn();
 const applyAgentImport = vi.fn();
 
 const pickFiles = () => {
-  const file = new File(["{}"], "appshots.json", { type: "application/json" });
+  const file = new File(["{}"], "breezel.json", { type: "application/json" });
   fireEvent.change(screen.getByLabelText("Choose files"), { target: { files: [file] } });
   return file;
 };
@@ -65,7 +65,7 @@ describe("AgentImportModal", () => {
     render(<AgentImportModal isOpen onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /copy agent prompt/i }));
     await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("appshots.json")),
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("breezel.json")),
     );
     expect(await screen.findByRole("button", { name: /copied/i })).not.toBeNull();
   });
@@ -112,7 +112,7 @@ describe("AgentImportModal", () => {
   });
 
   it("calls out the storage warning above the actions, apart from other warnings", async () => {
-    const storageMessage = "AppShots may stop saving your work";
+    const storageMessage = "Breezel may stop saving your work";
     runAgentImportMock.mockResolvedValue({
       ok: true,
       project,
@@ -172,7 +172,7 @@ describe("AgentImportModal", () => {
     const entry = {
       isFile: true,
       isDirectory: false,
-      name: "appshots.json",
+      name: "breezel.json",
       file: (_success: (file: File) => void, error: (err: unknown) => void) =>
         error(new Error("boom")),
     };

@@ -49,6 +49,6 @@ export const checkStorageBudget = (
   if (total <= budget) return null;
   return {
     path: "",
-    message: `This import brings saved data to about ${toMb(total)} MB, above the ~${toMb(budget)} MB browser storage limit. AppShots may stop saving your work — use fewer or smaller images, or delete unused projects first.`,
+    message: `This import brings saved data to about ${toMb(total)} MB, above the ~${toMb(budget)} MB browser storage limit. Breezel may stop saving your work — use fewer or smaller images, or delete unused projects first.`,
   };
 };

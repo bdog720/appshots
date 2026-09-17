@@ -1,5 +1,5 @@
 {
-  "format": "appshots-import",
+  "format": "breezel-import",
   "version": 1,
   "name": "Habitly — App Store",
   "exportSize": "6.9",
