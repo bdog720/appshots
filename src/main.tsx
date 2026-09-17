@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
-import { Analytics } from "@vercel/analytics/react";
 import { routeTree } from "./routeTree.gen";
 
 import "./styles.css";
@@ -26,14 +25,11 @@ declare module "@tanstack/react-router" {
 
 // Render the app
 const rootElement = document.getElementById("app");
-const seoFallbackElement = document.getElementById("seo-fallback");
 if (rootElement && !rootElement.innerHTML) {
-  seoFallbackElement?.remove();
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
       <RouterProvider router={router} />
-      <Analytics />
     </StrictMode>,
   );
 }
